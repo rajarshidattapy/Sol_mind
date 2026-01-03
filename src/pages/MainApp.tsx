@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Navbar from '../components/Navbar';
 import AgentsView from './AgentsView';
 import MarketplaceView from './MarketplaceView';
@@ -24,12 +24,14 @@ const MainApp = () => {
   const [customLLMs, setCustomLLMs] = useState<LLMConfig[]>([]);
   const api = useApiClient();
   const { publicKey, connected } = useWallet();
+  const preferencesLoadedRef = useRef(false);
 
-  // Load preferences from Redis (Vercel KV) on mount
+  // Load preferences from Redis (Vercel KV) on mount (only once)
   useEffect(() => {
+    if (preferencesLoadedRef.current) return; // Only load once
+    if (!connected || !publicKey) return; // Need wallet to load preferences
+    
     const loadPreferences = async () => {
-      if (!connected || !publicKey) return; // Need wallet to load preferences
-      
       try {
         const prefs = await api.getPreferences();
         if (prefs.active_tab) {
@@ -38,14 +40,16 @@ const MainApp = () => {
         if (prefs.active_sub_tab) {
           setActiveSubTab(prefs.active_sub_tab);
         }
+        preferencesLoadedRef.current = true;
       } catch (error) {
         console.error('Error loading preferences:', error);
-        // Continue with defaults if API fails
+        preferencesLoadedRef.current = true; // Mark as loaded even on error to prevent retries
       }
     };
 
     loadPreferences();
-  }, [connected, publicKey, api]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, publicKey]); // api is stable, doesn't need to be in deps
 
   // Save preferences to Redis when they change
   useEffect(() => {
@@ -66,11 +70,18 @@ const MainApp = () => {
     // Debounce saves to avoid too many API calls
     const timeoutId = setTimeout(savePreferences, 500);
     return () => clearTimeout(timeoutId);
-  }, [activeTab, activeSubTab, connected, publicKey, api]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, activeSubTab, connected, publicKey?.toBase58()]); // api is stable, doesn't need to be in deps
 
-  // Load custom agents from backend on mount
+  // Load custom agents from backend when wallet is connected
   useEffect(() => {
     const loadCustomAgents = async () => {
+      // Only load if wallet is connected (needed for filtering user's agents)
+      if (!connected || !publicKey) {
+        setCustomLLMs([]);
+        return;
+      }
+      
       try {
         const agents = await api.getAgents() as any[];
         
@@ -90,11 +101,13 @@ const MainApp = () => {
       } catch (error) {
         console.error('Error loading custom agents:', error);
         // Continue with empty list if API fails
+        setCustomLLMs([]);
       }
     };
 
     loadCustomAgents();
-  }, []); // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, publicKey?.toBase58()]); // Reload when wallet connects/disconnects (api is stable)
 
   const handleAddLLM = (llm: LLMConfig) => {
     setCustomLLMs(prev => [...prev, llm]);

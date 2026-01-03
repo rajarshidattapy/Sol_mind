@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MessageSquare, Plus, Brain, Clock, Sparkles } from 'lucide-react';
 import AgentChat from './AgentChat';
 import { useApiClient } from '../lib/api';
@@ -40,6 +40,7 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
   const [selectedChatId, setSelectedChatId] = useState<string | undefined>(undefined);
   const [allChats, setAllChats] = useState<Record<string, Chat[]>>({});
   const [loadingChats, setLoadingChats] = useState<Record<string, boolean>>({});
+  const prevCustomLLMsLengthRef = useRef<number>(0);
 
   // Get agent ID from model name
   const getAgentId = (model: string): string => {
@@ -57,11 +58,11 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
   };
 
   // Load chats from API
-  const loadChats = async (model: string) => {
+  const loadChats = async (model: string, force: boolean = false) => {
     const agentId = getAgentId(model);
     
-    // Skip if already loading or already loaded
-    if (loadingChats[model] || allChats[model]) {
+    // Skip if already loading or already loaded (unless force refresh)
+    if (!force && (loadingChats[model] || allChats[model])) {
       return;
     }
 
@@ -109,12 +110,30 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
     }
   };
 
+  // Reset view to list when activeModel changes (switching agents)
+  useEffect(() => {
+    setActiveView('list');
+    setSelectedChatId(undefined);
+  }, [activeModel]);
+
   // Load chats when activeModel changes
   useEffect(() => {
     if (activeModel && !allChats[activeModel]) {
       loadChats(activeModel);
     }
-  }, [activeModel]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeModel]); // Only reload when activeModel changes (customLLMs are handled separately)
+
+  // Reset view to list when a new agent is created (customLLMs length increases)
+  useEffect(() => {
+    const currentLength = customLLMs.length;
+    if (currentLength > prevCustomLLMsLengthRef.current && prevCustomLLMsLengthRef.current > 0) {
+      // A new agent was added, reset to list view
+      setActiveView('list');
+      setSelectedChatId(undefined);
+    }
+    prevCustomLLMsLengthRef.current = currentLength;
+  }, [customLLMs]);
 
   // Initialize custom LLM chat arrays
   useEffect(() => {
@@ -128,6 +147,18 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
 
   const currentChats = allChats[activeModel] || [];
   const selectedChat = selectedChatId ? currentChats.find(c => c.id === selectedChatId) : undefined;
+
+  // Validate selectedChatId - if it doesn't exist in current chats, reset to list view
+  useEffect(() => {
+    if (selectedChatId && activeView === 'chat') {
+      const chatExists = currentChats.some(c => c.id === selectedChatId);
+      if (!chatExists) {
+        // Selected chat doesn't exist for current model, reset to list
+        setActiveView('list');
+        setSelectedChatId(undefined);
+      }
+    }
+  }, [selectedChatId, activeView, activeModel, currentChats]);
 
   const getMemoryColor = (size: string) => {
     switch (size) {
@@ -212,18 +243,10 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
       })
     }));
     
-    // Refresh chats from API after a delay to ensure persistence
-    // This ensures chats are saved and will appear after reload
-    setTimeout(() => {
-      if (activeModel) {
-        setAllChats(prev => {
-          const updated = { ...prev };
-          delete updated[activeModel];
-          return updated;
-        });
-        loadChats(activeModel);
-      }
-    }, 1500); // Delay to allow API to save
+    // Note: We don't refresh from API here because:
+    // 1. Local state is already updated above
+    // 2. Aggressive refresh causes chats to disappear
+    // 3. Data persistence happens on backend, refresh happens when user navigates away and back
   };
 
   const handleUpdateChatId = (oldId: string, newId: string) => {
@@ -242,12 +265,13 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
   };
 
 
-  if (activeView === 'chat' && selectedChatId) {
+  // Only show chat view if we have a valid selectedChat for the current model
+  if (activeView === 'chat' && selectedChatId && selectedChat) {
     return (
       <AgentChat 
         activeModel={activeModel}
         chatId={selectedChatId}
-        initialMessages={(selectedChat?.messages || []).map(msg => ({
+        initialMessages={(selectedChat.messages || []).map(msg => ({
           ...msg,
           timestamp: msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp as string)
         }))}
