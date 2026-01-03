@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Brain, Store, Wallet, Settings, MessageSquare, Coins, TrendingUp, ArrowLeft, Plus, X } from 'lucide-react';
 import { useSolanaBalance } from '../hooks/useSolanaBalance';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { useApiClient } from '../lib/api';
 import appLogo from '../assets/app-logo.png';
 
 interface LLMConfig {
@@ -48,6 +49,8 @@ const Navbar: React.FC<NavbarProps> = ({
   const [newLLMName, setNewLLMName] = useState('');
   const [newLLMPlatform, setNewLLMPlatform] = useState('');
   const [newLLMApiKey, setNewLLMApiKey] = useState('');
+  const [isCreatingAgent, setIsCreatingAgent] = useState(false);
+  const api = useApiClient();
 
   const mainTabs = [
     { id: 'agents', label: 'Agents', icon: Brain },
@@ -72,22 +75,46 @@ const Navbar: React.FC<NavbarProps> = ({
     'Other'
   ];
 
-  const handleAddLLM = () => {
+  const handleAddLLM = async () => {
     if (!newLLMName.trim() || !newLLMPlatform || !newLLMApiKey.trim()) return;
 
-    const newLLM: LLMConfig = {
-      id: `custom-${Date.now()}`,
-      name: newLLMName.toLowerCase().replace(/\s+/g, '-'),
-      displayName: newLLMName,
-      platform: newLLMPlatform,
-      apiKeyConfigured: true
-    };
+    setIsCreatingAgent(true);
+    try {
+      // Create agent immediately via API so it persists
+      const agentName = newLLMName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '-');
+      const createdAgent = await api.createAgent({
+        name: agentName,
+        display_name: newLLMName,
+        platform: newLLMPlatform,
+        api_key: newLLMApiKey,
+        model: newLLMName // Use display name as model name
+      }) as any;
 
-    onAddLLM(newLLM);
-    setNewLLMName('');
-    setNewLLMPlatform('');
-    setNewLLMApiKey('');
-    setShowAddLLM(false);
+      // Convert created agent to LLMConfig format
+      const newLLM: LLMConfig = {
+        id: createdAgent.id,
+        name: createdAgent.name,
+        displayName: createdAgent.display_name || newLLMName,
+        platform: createdAgent.platform,
+        apiKeyConfigured: true
+      };
+
+      // Add to local state
+      onAddLLM(newLLM);
+      
+      // Clear form
+      setNewLLMName('');
+      setNewLLMPlatform('');
+      setNewLLMApiKey('');
+      setShowAddLLM(false);
+      
+      console.log('Agent created successfully:', createdAgent.id);
+    } catch (error) {
+      console.error('Error creating agent:', error);
+      alert(`Failed to create agent: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsCreatingAgent(false);
+    }
   };
 
   const getSubTabs = (tabId: string) => {
@@ -99,7 +126,7 @@ const Navbar: React.FC<NavbarProps> = ({
           { id: 'mistral', label: 'Mistral', icon: MessageSquare }
         ];
         const customAgents = customLLMs.map(llm => ({
-          id: llm.name,
+          id: llm.id, // Use agent ID instead of name
           label: llm.displayName,
           icon: MessageSquare
         }));
@@ -285,10 +312,10 @@ const Navbar: React.FC<NavbarProps> = ({
                 </button>
                 <button
                   onClick={handleAddLLM}
-                  disabled={!newLLMName.trim() || !newLLMPlatform || !newLLMApiKey.trim()}
+                  disabled={!newLLMName.trim() || !newLLMPlatform || !newLLMApiKey.trim() || isCreatingAgent}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-3 rounded-lg font-medium transition-colors"
                 >
-                  Add LLM
+                  {isCreatingAgent ? 'Creating...' : 'Add LLM'}
                 </button>
               </div>
             </div>

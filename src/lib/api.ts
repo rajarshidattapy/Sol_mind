@@ -58,33 +58,36 @@ export class ApiClient {
 
   // Chats
   async getChats(agentId: string) {
-    return this.request(`/api/v1/agents/${agentId}/chats`);
+    return this.request(`/api/v1/agents/${encodeURIComponent(agentId)}/chats`);
   }
 
   async createChat(agentId: string, chat: { name: string; memory_size?: string }) {
-    return this.request(`/api/v1/agents/${agentId}/chats`, {
+    return this.request(`/api/v1/agents/${encodeURIComponent(agentId)}/chats`, {
       method: 'POST',
-      body: JSON.stringify(chat),
+      body: JSON.stringify({
+        ...chat,
+        agent_id: agentId, // Required by backend schema
+      }),
     });
   }
 
   async getChat(agentId: string, chatId: string) {
-    return this.request(`/api/v1/agents/${agentId}/chats/${chatId}`);
+    return this.request(`/api/v1/agents/${encodeURIComponent(agentId)}/chats/${encodeURIComponent(chatId)}`);
   }
 
   async sendMessage(agentId: string, chatId: string, message: { role: string; content: string }) {
-    return this.request(`/api/v1/agents/${agentId}/chats/${chatId}/messages`, {
+    return this.request(`/api/v1/agents/${encodeURIComponent(agentId)}/chats/${encodeURIComponent(chatId)}/messages`, {
       method: 'POST',
       body: JSON.stringify(message),
     });
   }
 
   async getMessages(agentId: string, chatId: string) {
-    return this.request(`/api/v1/agents/${agentId}/chats/${chatId}/messages`);
+    return this.request(`/api/v1/agents/${encodeURIComponent(agentId)}/chats/${encodeURIComponent(chatId)}/messages`);
   }
 
   async deleteChat(agentId: string, chatId: string) {
-    return this.request(`/api/v1/agents/${agentId}/chats/${chatId}`, {
+    return this.request(`/api/v1/agents/${encodeURIComponent(agentId)}/chats/${encodeURIComponent(chatId)}`, {
       method: 'DELETE',
     });
   }
@@ -108,7 +111,7 @@ export class ApiClient {
   }
 
   async getCapsule(capsuleId: string) {
-    return this.request(`/api/v1/capsules/${capsuleId}`);
+    return this.request(`/api/v1/capsules/${encodeURIComponent(capsuleId)}`);
   }
 
   // Marketplace
@@ -158,6 +161,34 @@ export class ApiClient {
     return this.request('/api/v1/wallet/staking', {
       method: 'POST',
       body: JSON.stringify(staking),
+    });
+  }
+
+  // Preferences (stored in Vercel KV/Redis)
+  async getPreferences() {
+    return this.request<{
+      default_model?: string;
+      memory_behavior?: string;
+      active_tab?: string;
+      active_sub_tab?: string;
+    }>('/api/v1/preferences/');
+  }
+
+  async updatePreferences(preferences: {
+    default_model?: string;
+    memory_behavior?: string;
+    active_tab?: string;
+    active_sub_tab?: string;
+  }) {
+    return this.request('/api/v1/preferences/', {
+      method: 'POST',
+      body: JSON.stringify(preferences),
+    });
+  }
+
+  async clearPreferences() {
+    return this.request('/api/v1/preferences/', {
+      method: 'DELETE',
     });
   }
 }

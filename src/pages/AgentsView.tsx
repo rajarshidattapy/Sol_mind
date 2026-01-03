@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MessageSquare, Plus, Brain, Clock, Sparkles } from 'lucide-react';
 import AgentChat from './AgentChat';
+import { useApiClient } from '../lib/api';
 
 interface Message {
   id: string;
@@ -34,81 +35,96 @@ interface AgentsViewProps {
 }
 
 const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddLLM }) => {
+  const api = useApiClient();
   const [activeView, setActiveView] = useState<'list' | 'chat'>('list');
   const [selectedChatId, setSelectedChatId] = useState<string | undefined>(undefined);
-  const [allChats, setAllChats] = useState<Record<string, Chat[]>>({
-    claude: [
-      {
-        id: '1',
-        name: 'Trading Strategy Chat',
-        memorySize: 'Large',
-        lastMessage: 'What are the key technical indicators for crypto trading?',
-        timestamp: new Date(Date.now() - 1800000),
-        messageCount: 2,
-        messages: [
-          {
-            id: '1',
-            role: 'user',
-            content: 'What are the key technical indicators for crypto trading?',
-            timestamp: new Date(Date.now() - 60000)
-          },
-          {
-            id: '2',
-            role: 'assistant',
-            content: 'Based on my understanding of crypto markets, here are the most effective technical indicators:\n\n1. **RSI (Relative Strength Index)** - Helps identify overbought/oversold conditions\n2. **MACD** - Shows momentum and trend direction\n3. **Bollinger Bands** - Indicates volatility and potential price breakouts\n4. **Volume** - Confirms price movements\n5. **Moving Averages** - Identifies trend direction',
-            timestamp: new Date(Date.now() - 30000)
-          }
-        ]
-      },
-      {
-        id: '2',
-        name: 'Content Writing Assistant',
-        memorySize: 'Medium',
-        lastMessage: 'Help me write a blog post about AI trends',
-        timestamp: new Date(Date.now() - 3600000),
-        messageCount: 23,
-        messages: []
-      }
-    ],
-    gpt: [
-      {
-        id: '3',
-        name: 'Code Review Helper',
-        memorySize: 'Large',
-        lastMessage: 'Review this React component for best practices',
-        timestamp: new Date(Date.now() - 7200000),
-        messageCount: 89,
-        messages: []
-      },
-      {
-        id: '4',
-        name: 'Business Strategy',
-        memorySize: 'Medium',
-        lastMessage: 'Analyze market opportunities for SaaS',
-        timestamp: new Date(Date.now() - 14400000),
-        messageCount: 31,
-        messages: []
-      }
-    ],
-    mistral: [
-      {
-        id: '5',
-        name: 'Language Learning',
-        memorySize: 'Small',
-        lastMessage: 'Practice French conversation',
-        timestamp: new Date(Date.now() - 86400000),
-        messageCount: 15,
-        messages: []
-      }
-    ]
-  });
+  const [allChats, setAllChats] = useState<Record<string, Chat[]>>({});
+  const [loadingChats, setLoadingChats] = useState<Record<string, boolean>>({});
 
-  // Add custom LLM chats
-  customLLMs.forEach(llm => {
-    if (!allChats[llm.name]) {
-      setAllChats(prev => ({ ...prev, [llm.name]: [] }));
+  // Get agent ID from model name
+  const getAgentId = (model: string): string => {
+    // Check if it's a custom LLM
+    const customLLM = customLLMs.find(llm => 
+      llm.id === model || 
+      llm.name === model || 
+      llm.displayName === model
+    );
+    if (customLLM) {
+      return customLLM.id;
     }
-  });
+    // Default agents use their name as ID
+    return model;
+  };
+
+  // Load chats from API
+  const loadChats = async (model: string) => {
+    const agentId = getAgentId(model);
+    
+    // Skip if already loading or already loaded
+    if (loadingChats[model] || allChats[model]) {
+      return;
+    }
+
+    setLoadingChats(prev => ({ ...prev, [model]: true }));
+
+    try {
+      const apiChats = await api.getChats(agentId) as any[];
+      
+      // Transform API response to frontend Chat format
+      const transformedChats: Chat[] = apiChats.map((apiChat: any) => {
+        // Transform messages
+        const messages: Message[] = (apiChat.messages || []).map((msg: any) => ({
+          id: msg.id || Date.now().toString(),
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+          timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date()
+        }));
+
+        return {
+          id: apiChat.id,
+          name: apiChat.name || 'New Chat',
+          memorySize: (apiChat.memory_size || 'Small') as 'Small' | 'Medium' | 'Large',
+          lastMessage: apiChat.last_message || '',
+          timestamp: apiChat.timestamp ? new Date(apiChat.timestamp) : new Date(),
+          messageCount: apiChat.message_count || messages.length,
+          messages: messages
+        };
+      });
+
+      setAllChats(prev => ({
+        ...prev,
+        [model]: transformedChats
+      }));
+
+      console.log(`Loaded ${transformedChats.length} chats for ${model}`);
+    } catch (error) {
+      console.error(`Error loading chats for ${model}:`, error);
+      // Initialize with empty array on error
+      setAllChats(prev => ({
+        ...prev,
+        [model]: []
+      }));
+    } finally {
+      setLoadingChats(prev => ({ ...prev, [model]: false }));
+    }
+  };
+
+  // Load chats when activeModel changes
+  useEffect(() => {
+    if (activeModel && !allChats[activeModel]) {
+      loadChats(activeModel);
+    }
+  }, [activeModel]);
+
+  // Initialize custom LLM chat arrays
+  useEffect(() => {
+    customLLMs.forEach(llm => {
+      if (!allChats[llm.id] && !allChats[llm.name]) {
+        // Don't load yet, just initialize empty array
+        setAllChats(prev => ({ ...prev, [llm.id]: [], [llm.name]: [] }));
+      }
+    });
+  }, [customLLMs]);
 
   const currentChats = allChats[activeModel] || [];
   const selectedChat = selectedChatId ? currentChats.find(c => c.id === selectedChatId) : undefined;
@@ -140,7 +156,7 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
   };
 
   const handleNewChat = () => {
-    // Create a new chat entry
+    // Create a temporary chat entry (will be replaced with real ID when created via API)
     const newChatId = `new-${Date.now()}`;
     const newChat: Chat = {
       id: newChatId,
@@ -171,12 +187,22 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
       [activeModel]: (prev[activeModel] || []).map(chat => {
         if (chat.id === chatId) {
           const lastMsg = messages[messages.length - 1];
+          // Ensure timestamp is Date object
+          const lastMsgTimestamp = lastMsg?.timestamp instanceof Date 
+            ? lastMsg.timestamp 
+            : lastMsg?.timestamp 
+              ? new Date(lastMsg.timestamp as string) 
+              : chat.timestamp;
+          
           return {
             ...chat,
-            messages,
+            messages: messages.map(msg => ({
+              ...msg,
+              timestamp: msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp as string)
+            })),
             messageCount: messages.length,
             lastMessage: lastMsg?.content.substring(0, 100) || '',
-            timestamp: lastMsg?.timestamp || chat.timestamp,
+            timestamp: lastMsgTimestamp,
             name: messages.length > 0 && chat.name === 'New Chat' 
               ? messages[0].content.substring(0, 30) + '...'
               : chat.name
@@ -185,16 +211,56 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
         return chat;
       })
     }));
+    
+    // Refresh chats from API after a delay to ensure persistence
+    // This ensures chats are saved and will appear after reload
+    setTimeout(() => {
+      if (activeModel) {
+        setAllChats(prev => {
+          const updated = { ...prev };
+          delete updated[activeModel];
+          return updated;
+        });
+        loadChats(activeModel);
+      }
+    }, 1500); // Delay to allow API to save
   };
+
+  const handleUpdateChatId = (oldId: string, newId: string) => {
+    // Update chat ID mapping when chat is created via API
+    setAllChats(prev => {
+      const updated = { ...prev };
+      const chats = updated[activeModel] || [];
+      const chatIndex = chats.findIndex(c => c.id === oldId);
+      if (chatIndex !== -1) {
+        chats[chatIndex] = { ...chats[chatIndex], id: newId };
+        updated[activeModel] = chats;
+      }
+      return updated;
+    });
+    setSelectedChatId(newId);
+  };
+
 
   if (activeView === 'chat' && selectedChatId) {
     return (
       <AgentChat 
         activeModel={activeModel}
         chatId={selectedChatId}
-        initialMessages={selectedChat?.messages || []}
+        initialMessages={(selectedChat?.messages || []).map(msg => ({
+          ...msg,
+          timestamp: msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp as string)
+        }))}
         onBack={handleBackToList}
-        onUpdateMessages={(messages) => handleUpdateMessages(selectedChatId, messages)}
+        onUpdateMessages={(messages) => {
+          // Ensure all timestamps are Date objects
+          const normalizedMessages = messages.map(msg => ({
+            ...msg,
+            timestamp: msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp as string)
+          }));
+          handleUpdateMessages(selectedChatId, normalizedMessages);
+        }}
+        onUpdateChatId={handleUpdateChatId}
         customLLMs={customLLMs}
         onAddLLM={onAddLLM}
       />
@@ -223,7 +289,13 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
           </button>
         </div>
 
-        {currentChats.length === 0 ? (
+        {loadingChats[activeModel] ? (
+          <div className="text-center py-20">
+            <Brain className="h-16 w-16 mx-auto mb-6 text-gray-600 animate-pulse" />
+            <h3 className="text-xl font-semibold text-white mb-2">Loading chats...</h3>
+            <p className="text-gray-400">Fetching your conversations</p>
+          </div>
+        ) : currentChats.length === 0 ? (
           <div className="text-center py-20">
             <Brain className="h-16 w-16 mx-auto mb-6 text-gray-600" />
             <h3 className="text-xl font-semibold text-white mb-2">

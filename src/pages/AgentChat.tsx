@@ -23,6 +23,7 @@ interface AgentChatProps {
   initialMessages: Message[];
   onBack: () => void;
   onUpdateMessages: (messages: Message[]) => void;
+  onUpdateChatId?: (oldId: string, newId: string) => void;
   customLLMs: LLMConfig[];
   onAddLLM: (llm: LLMConfig) => void;
 }
@@ -33,6 +34,7 @@ const AgentChat: React.FC<AgentChatProps> = ({
   initialMessages,
   onBack,
   onUpdateMessages,
+  onUpdateChatId,
   customLLMs,
   onAddLLM
 }) => {
@@ -45,7 +47,13 @@ const AgentChat: React.FC<AgentChatProps> = ({
   const [newLLMName, setNewLLMName] = useState('');
   const [newLLMPlatform, setNewLLMPlatform] = useState('');
   const [newLLMApiKey, setNewLLMApiKey] = useState('');
+  const [actualChatId, setActualChatId] = useState<string | undefined>(chatId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Update actualChatId when chatId prop changes
+  useEffect(() => {
+    setActualChatId(chatId);
+  }, [chatId]);
 
   const allLLMs: LLMConfig[] = [
     { id: 'claude', name: 'claude', displayName: 'Claude 3.5 Sonnet', platform: 'Anthropic', apiKeyConfigured: true },
@@ -54,7 +62,45 @@ const AgentChat: React.FC<AgentChatProps> = ({
     ...customLLMs
   ];
 
-  const currentLLM = allLLMs.find(llm => llm.name === activeModel) || allLLMs[0];
+  // Better matching: try by id, name, displayName, or case-insensitive match
+  const currentLLM = allLLMs.find(llm => 
+    llm.id === activeModel || 
+    llm.name === activeModel || 
+    llm.displayName === activeModel ||
+    llm.id.toLowerCase() === activeModel.toLowerCase() ||
+    llm.name.toLowerCase() === activeModel.toLowerCase() ||
+    llm.displayName.toLowerCase() === activeModel.toLowerCase()
+  ) || allLLMs[0]; // Default to first (Claude) only if no match found
+
+  // Load messages from API when chatId is available and not a new chat
+  useEffect(() => {
+    const loadMessages = async () => {
+      if (!actualChatId || actualChatId.startsWith('new-') || messages.length > 0) {
+        return; // Skip if new chat or messages already loaded
+      }
+
+      try {
+        const apiMessages = await api.getMessages(currentLLM.id, actualChatId) as any[];
+        const transformedMessages: Message[] = apiMessages.map((msg: any) => ({
+          id: msg.id || Date.now().toString(),
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+          timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date()
+        }));
+        
+        if (transformedMessages.length > 0) {
+          setMessages(transformedMessages);
+          onUpdateMessages(transformedMessages);
+        }
+      } catch (error) {
+        console.error('Error loading messages:', error);
+        // Continue with empty messages if load fails
+      }
+    };
+
+    loadMessages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actualChatId, currentLLM.id]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -67,22 +113,85 @@ const AgentChat: React.FC<AgentChatProps> = ({
   const handleSendMessage = async () => {
     if (!currentMessage.trim() || !chatId) return;
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: currentMessage,
-      timestamp: new Date()
-    };
-
-    const newMessages = [...messages, userMessage];
-    setMessages(newMessages);
-    setCurrentMessage('');
     setIsLoading(true);
     setError(null);
 
     try {
+      // Ensure agent exists - create if it's a temporary custom LLM
+      let agentId = currentLLM.id;
+      console.log('Selected agent:', { agentId, activeModel, currentLLM: currentLLM.displayName });
+      
+      // Check if this is a temporary agent that needs to be created
+      // Or if it's a custom agent that might not exist yet
+      const isTemporaryAgent = agentId.startsWith('custom-');
+      const hasApiKey = (currentLLM as any).apiKey;
+      
+      if (isTemporaryAgent && hasApiKey) {
+        // This is a temporary agent that needs to be created
+        const agentName = currentLLM.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '-');
+        try {
+          const createdAgent = await api.createAgent({
+            name: agentName,
+            display_name: currentLLM.displayName, // API expects display_name
+            platform: currentLLM.platform,
+            api_key: (currentLLM as any).apiKey,
+            model: (currentLLM as any).model || currentLLM.displayName
+          }) as any;
+          
+          agentId = createdAgent.id;
+          console.log('Created new agent:', agentId);
+          // Update the LLM config with the real ID
+          currentLLM.id = agentId;
+          delete (currentLLM as any).apiKey; // Remove API key from memory
+        } catch (err) {
+          console.error('Error creating agent:', err);
+          throw new Error(`Failed to create agent: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+      }
+
+      // Ensure chat exists - create if it's a temporary chat (starts with "new-")
+      let currentChatId = actualChatId || chatId;
+      if (!currentChatId || currentChatId.startsWith('new-')) {
+        // Create chat via API with the correct agentId
+        console.log('Creating new chat for agent:', agentId);
+        try {
+          const createdChat = await api.createChat(agentId, {
+            name: 'New Chat',
+            memory_size: 'Small'
+          }) as any;
+          currentChatId = createdChat.id;
+          console.log('Created chat:', currentChatId, 'for agent:', agentId);
+          
+          // Update local state
+          setActualChatId(currentChatId);
+          
+          // Update chat ID in parent component
+          if (onUpdateChatId && chatId) {
+            onUpdateChatId(chatId, currentChatId);
+          }
+        } catch (err) {
+          console.error('Error creating chat:', err);
+          throw new Error(`Failed to create chat: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+      }
+      
+      console.log('Sending message to agent:', agentId, 'chat:', currentChatId);
+
+      // Add user message to UI immediately
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: currentMessage,
+        timestamp: new Date()
+      };
+
+      const newMessages = [...messages, userMessage];
+      setMessages(newMessages);
+      setCurrentMessage('');
+
+      // Use agent ID (not name) for API calls
       // Send message to backend API
-      const response = await api.sendMessage(activeModel, chatId, {
+      const response = await api.sendMessage(agentId, currentChatId, {
         role: 'user',
         content: currentMessage
       }) as { content: string };
@@ -107,22 +216,42 @@ const AgentChat: React.FC<AgentChatProps> = ({
     }
   };
 
-  const handleAddLLM = () => {
+  const handleAddLLM = async () => {
     if (!newLLMName.trim() || !newLLMPlatform.trim() || !newLLMApiKey.trim()) return;
 
-    const newLLM: LLMConfig = {
-      id: `custom-${Date.now()}`,
-      name: newLLMName.toLowerCase().replace(/\s+/g, '-'),
-      displayName: newLLMName,
-      platform: newLLMPlatform,
-      apiKeyConfigured: true
-    };
+    try {
+      setIsLoading(true);
+      setError(null);
 
-    onAddLLM(newLLM);
-    setNewLLMName('');
-    setNewLLMPlatform('');
-    setNewLLMApiKey('');
-    setShowAddLLM(false);
+      // Create agent via API
+      const agentName = newLLMName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '-');
+      const agent = await api.createAgent({
+        name: agentName,
+        display_name: newLLMName,
+        platform: newLLMPlatform,
+        api_key: newLLMApiKey,
+        model: newLLMName // Use full model name (e.g., nvidia/nemotron-nano-12b-v2-vl:free)
+      }) as any; // API returns snake_case, not camelCase
+
+      const newLLM: LLMConfig = {
+        id: agent.id,
+        name: agent.name,
+        displayName: agent.display_name || newLLMName,
+        platform: agent.platform,
+        apiKeyConfigured: true
+      };
+
+      onAddLLM(newLLM);
+      setNewLLMName('');
+      setNewLLMPlatform('');
+      setNewLLMApiKey('');
+      setShowAddLLM(false);
+    } catch (err) {
+      console.error('Error creating agent:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create agent');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const platforms = [
