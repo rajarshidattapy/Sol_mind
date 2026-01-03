@@ -5,6 +5,7 @@ import MarketplaceView from './MarketplaceView';
 import WalletView from './WalletView';
 import Settings from './Settings';
 import { useApiClient } from '../lib/api';
+import { useWallet } from '@solana/wallet-adapter-react';
 
 interface LLMConfig {
   id: string;
@@ -22,6 +23,50 @@ const MainApp = () => {
   const [activeSubTab, setActiveSubTab] = useState('claude');
   const [customLLMs, setCustomLLMs] = useState<LLMConfig[]>([]);
   const api = useApiClient();
+  const { publicKey, connected } = useWallet();
+
+  // Load preferences from Redis (Vercel KV) on mount
+  useEffect(() => {
+    const loadPreferences = async () => {
+      if (!connected || !publicKey) return; // Need wallet to load preferences
+      
+      try {
+        const prefs = await api.getPreferences();
+        if (prefs.active_tab) {
+          setActiveTab(prefs.active_tab);
+        }
+        if (prefs.active_sub_tab) {
+          setActiveSubTab(prefs.active_sub_tab);
+        }
+      } catch (error) {
+        console.error('Error loading preferences:', error);
+        // Continue with defaults if API fails
+      }
+    };
+
+    loadPreferences();
+  }, [connected, publicKey, api]);
+
+  // Save preferences to Redis when they change
+  useEffect(() => {
+    const savePreferences = async () => {
+      if (!connected || !publicKey) return; // Need wallet to save preferences
+      
+      try {
+        await api.updatePreferences({
+          active_tab: activeTab,
+          active_sub_tab: activeSubTab
+        });
+      } catch (error) {
+        console.error('Error saving preferences:', error);
+        // Fail silently - preferences are not critical
+      }
+    };
+
+    // Debounce saves to avoid too many API calls
+    const timeoutId = setTimeout(savePreferences, 500);
+    return () => clearTimeout(timeoutId);
+  }, [activeTab, activeSubTab, connected, publicKey, api]);
 
   // Load custom agents from backend on mount
   useEffect(() => {
