@@ -205,6 +205,17 @@ export class ApiClient {
     return this.request(`/api/v1/capsules/${encodeURIComponent(capsuleId)}`);
   }
 
+  async queryCapsule(capsuleId: string, payload: {
+    prompt: string;
+    payment_signature?: string;
+    amount_paid?: number;
+  }) {
+    return this.request(`/api/v1/capsules/${encodeURIComponent(capsuleId)}/query`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   // Marketplace
   async browseMarketplace(filters?: {
     category?: string;

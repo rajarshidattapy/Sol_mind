@@ -71,8 +71,17 @@ async def query_capsule(
     """Query a capsule (requires payment)"""
     if not wallet_address:
         raise HTTPException(status_code=401, detail="Wallet address required")
-    
+
     service = CapsuleService()
-    result = await service.query_capsule(capsule_id, query.get("prompt", ""), wallet_address)
-    return result
+    try:
+        result = await service.query_capsule(
+            capsule_id,
+            query.get("prompt", ""),
+            wallet_address,
+            payment_signature=query.get("payment_signature"),
+            amount_paid=query.get("amount_paid")
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
