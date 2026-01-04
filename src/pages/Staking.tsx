@@ -59,7 +59,7 @@ const Staking = () => {
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">Staking</h1>
-          <p className="text-gray-400">Stake MNT tokens to boost visibility and earn rewards</p>
+          <p className="text-gray-400">Stake SOL tokens to boost visibility and earn rewards</p>
         </div>
 
         {/* Overview Stats */}
@@ -69,8 +69,8 @@ const Staking = () => {
               <Coins className="h-5 w-5 text-blue-400" />
               <span className="text-gray-400">Total Staked</span>
             </div>
-            <div className="text-2xl font-bold text-white">200 MNT</div>
-            <div className="text-sm text-green-400">+15 MNT this week</div>
+            <div className="text-2xl font-bold text-white">200 SOL</div>
+            <div className="text-sm text-green-400">+15 SOL this week</div>
           </div>
 
           <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
@@ -78,7 +78,7 @@ const Staking = () => {
               <TrendingUp className="h-5 w-5 text-green-400" />
               <span className="text-gray-400">Staking Rewards</span>
             </div>
-            <div className="text-2xl font-bold text-white">3.2 MNT</div>
+            <div className="text-2xl font-bold text-white">3.2 SOL</div>
             <div className="text-sm text-gray-400">Last 30 days</div>
           </div>
 
@@ -117,13 +117,13 @@ const Staking = () => {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-green-400 font-semibold">+{capsule.earnings} MNT</div>
+                      <div className="text-green-400 font-semibold">+{capsule.earnings} SOL</div>
                       <div className="text-xs text-gray-400">This week</div>
                     </div>
                   </div>
                   
                   <div className="flex items-center justify-between">
-                    <div className="text-lg font-bold text-white">{capsule.currentStake} MNT</div>
+                    <div className="text-lg font-bold text-white">{capsule.currentStake} SOL</div>
                     <div className="flex space-x-2">
                       <button className="bg-red-600 hover:bg-red-700 text-white p-2 rounded transition-colors">
                         <Minus className="h-4 w-4" />
@@ -141,7 +141,7 @@ const Staking = () => {
                     ></div>
                   </div>
                   <div className="text-xs text-gray-400 mt-1">
-                    {capsule.currentStake} / 200 MNT for top 5 ranking
+                    {capsule.currentStake} / 200 SOL for top 5 ranking
                   </div>
                 </div>
               ))}
@@ -181,7 +181,7 @@ const Staking = () => {
                   <div className="grid grid-cols-3 gap-2 text-xs mb-3">
                     <div>
                       <div className="text-gray-400">Total Staked</div>
-                      <div className="text-white font-semibold">{opportunity.totalStaked} MNT</div>
+                      <div className="text-white font-semibold">{opportunity.totalStaked} SOL</div>
                     </div>
                     <div>
                       <div className="text-gray-400">Queries</div>
@@ -189,7 +189,7 @@ const Staking = () => {
                     </div>
                     <div>
                       <div className="text-gray-400">Min Stake</div>
-                      <div className="text-white font-semibold">{opportunity.minStake} MNT</div>
+                      <div className="text-white font-semibold">{opportunity.minStake} SOL</div>
                     </div>
                   </div>
 

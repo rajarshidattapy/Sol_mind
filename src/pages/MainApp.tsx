@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import AgentsView from './AgentsView';
 import MarketplaceView from './MarketplaceView';
 import WalletView from './WalletView';
 import Settings from './Settings';
+import CapsuleDetail from './CapsuleDetail';
 import { useApiClient } from '../lib/api';
 import { useWallet } from '@solana/wallet-adapter-react';
 
@@ -19,12 +21,17 @@ interface LLMConfig {
 const DEFAULT_AGENT_IDS: string[] = [];
 
 const MainApp = () => {
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('agents');
   const [activeSubTab, setActiveSubTab] = useState('');
   const [customLLMs, setCustomLLMs] = useState<LLMConfig[]>([]);
   const api = useApiClient();
   const { publicKey, connected } = useWallet();
   const preferencesLoadedRef = useRef(false);
+
+  // Check if we're on a capsule detail route
+  const capsuleDetailMatch = location.pathname.match(/^\/app\/marketplace\/(.+)$/);
+  const isCapsuleDetail = capsuleDetailMatch !== null;
 
   // Load preferences from Redis (Vercel KV) on mount (only once)
   useEffect(() => {
@@ -169,9 +176,18 @@ const MainApp = () => {
     }
   };
 
+  // If we're on a capsule detail page, render it without the tab navigation
+  if (isCapsuleDetail) {
+    return (
+      <div className="min-h-screen bg-gray-900">
+        <CapsuleDetail />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-900">
-      <Navbar 
+      <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         activeSubTab={activeSubTab}
