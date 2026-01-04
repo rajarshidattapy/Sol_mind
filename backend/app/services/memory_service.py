@@ -61,16 +61,6 @@ class MemoryService:
                     }
                 }
                 
-                # Add embedding config if OPENAI_API_KEY is available
-                if settings.OPENAI_API_KEY:
-                    config["embedder"] = {
-                        "provider": "openai",
-                        "config": {
-                            "model": "text-embedding-3-small",
-                            "api_key": settings.OPENAI_API_KEY
-                        }
-                    }
-                
                 self.memory = Memory.from_config(config)
                 logger.info("✅ MemoryService initialized with open-source mem0 (ChromaDB)")
                 logger.warning("⚠️  Using local storage - memories not trackable via Mem0 dashboard")
@@ -80,7 +70,7 @@ class MemoryService:
         
         if not self.memory:
             logger.error("❌ MemoryService initialization failed - memory features disabled")
-            logger.warning("   Set MEM0_API_KEY for Platform API or OPENAI_API_KEY for open-source")
+            logger.warning("   Set MEM0_API_KEY for Platform API")
     
     def _is_available(self) -> bool:
         """Check if memory service is available"""

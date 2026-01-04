@@ -79,30 +79,21 @@ class AgentService:
         # Add default agents (always included)
         default_agents = [
             Agent(
-                id="claude",
-                name="claude",
-                display_name="Claude 3.5 Sonnet",
-                platform="Anthropic",
-                api_key_configured=True,
-                model="claude-3-5-sonnet-20241022",
-                api_key=None
-            ),
-            Agent(
                 id="gpt",
                 name="gpt",
                 display_name="GPT-4 Turbo",
-                platform="OpenAI",
+                platform="OpenRouter",
                 api_key_configured=True,
-                model="openai/gpt-oss-120b:free",
+                model="openai/gpt-4-turbo",
                 api_key=None
             ),
             Agent(
                 id="mistral",
                 name="mistral",
                 display_name="Mistral Large",
-                platform="Mistral AI",
+                platform="OpenRouter",
                 api_key_configured=True,
-                model="mistralai/mistral-7b-instruct:free",
+                model="mistralai/mistral-large-latest",
                 api_key=None
             )
         ]
@@ -110,6 +101,35 @@ class AgentService:
     
     async def get_agent(self, agent_id: str, wallet_address: Optional[str]) -> Optional[Agent]:
         """Get a specific agent with API key (for internal use)"""
+        # Check default agents first (they're not in DB)
+        default_agents = {
+            "gpt": Agent(
+                id="gpt",
+                name="gpt",
+                display_name="GPT-4 Turbo",
+                platform="OpenRouter",
+                api_key_configured=True,
+                model="openai/gpt-4-turbo",
+                api_key=None
+            ),
+            "mistral": Agent(
+                id="mistral",
+                name="mistral",
+                display_name="Mistral Large",
+                platform="OpenRouter",
+                api_key_configured=True,
+                model="mistralai/mistral-large-latest",
+                api_key=None
+            )
+        }
+        if agent_id in default_agents:
+            return default_agents[agent_id]
+        
+        # Check in-memory storage (for custom agents) - has API key
+        if agent_id in AgentService._in_memory_agents:
+            return Agent(**AgentService._in_memory_agents[agent_id])
+        
+        # Try Supabase for all agents (including custom) - has API key stored
         try:
             self._check_supabase()
             query = self.supabase.table("agents").select("*").eq("id", agent_id)
@@ -120,42 +140,22 @@ class AgentService:
             if result.data:
                 return Agent(**result.data)
         except Exception as e:
-            print(f"Error fetching agent: {e}")
-            # Check in-memory storage
-            if agent_id in AgentService._in_memory_agents:
-                return Agent(**AgentService._in_memory_agents[agent_id])
-            
-            # Check default agents
-            default_agents = {
-                "claude": Agent(
-                    id="claude",
-                    name="claude",
-                    display_name="Claude 3.5 Sonnet",
-                    platform="Anthropic",
-                    api_key_configured=True,
-                    model="claude-3-5-sonnet-20241022",
-                    api_key=None
-                ),
-                "gpt": Agent(
-                    id="gpt",
-                    name="gpt",
-                    display_name="GPT-4 Turbo",
-                    platform="OpenAI",
-                    api_key_configured=True,
-                    model="gpt-4-turbo-preview",
-                    api_key=None
-                ),
-                "mistral": Agent(
-                    id="mistral",
-                    name="mistral",
-                    display_name="Mistral Large",
-                    platform="Mistral AI",
-                    api_key_configured=True,
-                    model="mistral-large-latest",
-                    api_key=None
-                )
-            }
-            return default_agents.get(agent_id)
+            # Supabase query failed, continue to other sources
+            print(f"Error fetching agent from Supabase: {e}")
+        
+        # Check Redis for custom agents (if wallet_address provided) - no API key here
+        if wallet_address and cache_service.redis_available and agent_id.startswith("custom-"):
+            try:
+                agents_data = cache_service.get_user_agents(wallet_address)
+                for agent_data in agents_data:
+                    if agent_data.get("id") == agent_id:
+                        # Try to get API key from in-memory if available
+                        if agent_id in AgentService._in_memory_agents:
+                            return Agent(**AgentService._in_memory_agents[agent_id])
+                        # Otherwise return without API key (will cause API errors but at least agent exists)
+                        return Agent(**agent_data, api_key=None)
+            except Exception as e:
+                print(f"Error loading agent from Redis: {e}")
         
         return None
     

@@ -90,9 +90,7 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_KEY: str = os.getenv("SUPABASE_SERVICE_KEY", "")
     
     # LLM API Keys
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-    ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
-    MISTRAL_API_KEY: str = os.getenv("MISTRAL_API_KEY", "")
+    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
     
     # Mem0 Platform API Key (for hosted memory service)
     MEM0_API_KEY: str = os.getenv("MEM0_API_KEY", "")

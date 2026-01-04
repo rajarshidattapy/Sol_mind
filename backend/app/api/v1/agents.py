@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import StreamingResponse
 from typing import Optional, List
 from app.models.schemas import (
     Chat, ChatCreate, ChatUpdate, Message, MessageCreate,
@@ -8,6 +9,7 @@ from app.services.agent_service import AgentService
 from app.services.llm_service import LLMService
 from app.core.auth_dependencies import get_wallet_address
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +142,85 @@ async def send_message(
         # Log error but don't remove user message (user can see it failed)
         logger.error(f"Error getting LLM response: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get AI response: {str(e)}")
+
+
+@router.post("/{agent_id}/chats/{chat_id}/messages/stream")
+async def send_message_stream(
+    agent_id: str,
+    chat_id: str,
+    message: MessageCreate,
+    wallet_address: Optional[str] = Depends(get_wallet_address)
+):
+    """Send a message to an agent and get streaming response (Server-Sent Events)"""
+    if not wallet_address:
+        raise HTTPException(status_code=401, detail="Wallet address required")
+    
+    service = AgentService()
+    llm_service = LLMService()
+    
+    # Get chat history
+    logger.debug(f"Looking up chat {chat_id} for wallet {wallet_address}")
+    chat = await service.get_chat(chat_id, wallet_address)
+    if not chat:
+        logger.warning(f"Chat {chat_id} not found for wallet {wallet_address}")
+        raise HTTPException(status_code=404, detail=f"Chat not found (chat_id: {chat_id}, wallet: {wallet_address})")
+    
+    # Use the chat's agent_id if available
+    actual_agent_id = chat.agent_id if chat.agent_id else agent_id
+    if actual_agent_id != agent_id:
+        logger.info(f"Using chat's agent_id ({actual_agent_id}) instead of URL agent_id ({agent_id})")
+    
+    # Get agent config (with API key for internal use)
+    agent = await service.get_agent(actual_agent_id, wallet_address)
+    if not agent:
+        raise HTTPException(status_code=404, detail=f"Agent not found (agent_id: {actual_agent_id})")
+    
+    # Save user message first
+    user_msg = await service.add_message(chat_id, message, wallet_address)
+    
+    # Get LLM response with memory integration
+    messages_history = [{"role": m.role.value, "content": m.content} for m in chat.messages]
+    messages_history.append({"role": message.role.value, "content": message.content})
+    
+    # Get memory_size and capsule_id from chat
+    memory_size = chat.memory_size.value if hasattr(chat.memory_size, 'value') else str(chat.memory_size)
+    capsule_id = chat.capsule_id if hasattr(chat, 'capsule_id') else None
+    
+    async def generate_stream():
+        full_content = ""
+        try:
+            async for chunk in llm_service.get_completion_stream(
+                agent_id=actual_agent_id,
+                messages=messages_history,
+                agent_config=agent,
+                chat_id=chat_id,
+                memory_size=memory_size,
+                capsule_id=capsule_id
+            ):
+                full_content += chunk
+                # Send chunk as SSE
+                yield f"data: {json.dumps({'content': chunk})}\n\n"
+            
+            # Save assistant message after streaming completes
+            if full_content:
+                assistant_msg = MessageCreate(role="assistant", content=full_content)
+                await service.add_message(chat_id, assistant_msg, wallet_address)
+            
+            # Send completion signal
+            yield f"data: {json.dumps({'done': True})}\n\n"
+        except Exception as e:
+            logger.error(f"Error in streaming: {e}", exc_info=True)
+            error_data = json.dumps({'error': str(e)})
+            yield f"data: {error_data}\n\n"
+    
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # Disable buffering for nginx
+        }
+    )
 
 
 @router.get("/{agent_id}/chats/{chat_id}/messages", response_model=List[Message])
