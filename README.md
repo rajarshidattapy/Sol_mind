@@ -1,6 +1,7 @@
 # 🧠 SolMind
 
 <div align="center">
+<img width="1520" height="980" alt="image" src="https://github.com/user-attachments/assets/21a9d8ba-e9a0-4a5f-ad0d-522669d406dd" />
 
 **Turn AI conversations into on-chain intelligence**
 
