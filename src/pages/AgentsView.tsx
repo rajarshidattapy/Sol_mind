@@ -83,8 +83,7 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
 
         return {
           id: apiChat.id,
-          name: apiChat.name || 'New Chat',
-          memorySize: (apiChat.memory_size || 'Small') as 'Small' | 'Medium' | 'Large',
+          name: apiChat.id,
           lastMessage: apiChat.last_message || '',
           timestamp: apiChat.timestamp ? new Date(apiChat.timestamp) : new Date(),
           messageCount: apiChat.message_count || messages.length,
@@ -186,7 +185,7 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
     const newChatId = `new-${Date.now()}`;
     const newChat: Chat = {
       id: newChatId,
-      name: 'New Chat',
+      name: newChatId,
       memorySize: 'Small',
       lastMessage: '',
       timestamp: new Date(),
@@ -229,9 +228,7 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
             messageCount: messages.length,
             lastMessage: lastMsg?.content.substring(0, 100) || '',
             timestamp: lastMsgTimestamp,
-            name: messages.length > 0 && chat.name === 'New Chat' 
-              ? messages[0].content.substring(0, 30) + '...'
-              : chat.name
+            name: chat.id
           };
         }
         return chat;
@@ -251,7 +248,7 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
       const chats = updated[activeModel] || [];
       const chatIndex = chats.findIndex(c => c.id === oldId);
       if (chatIndex !== -1) {
-        chats[chatIndex] = { ...chats[chatIndex], id: newId };
+        chats[chatIndex] = { ...chats[chatIndex], id: newId, name: newId };
         updated[activeModel] = chats;
       }
       return updated;

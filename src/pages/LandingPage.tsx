@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
@@ -22,10 +22,28 @@ export default function LandingPage() {
   const { connected, publicKey, disconnect } = useWallet();
   const { balance, loading } = useSolanaBalance();
   const [showDisconnect, setShowDisconnect] = useState(false);
+  const disconnectRef = useRef<HTMLDivElement>(null);
 
   const shortenAddress = (address: string) => {
     return `${address.slice(0, 4)}...${address.slice(-4)}`;
   };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (disconnectRef.current && !disconnectRef.current.contains(event.target as Node)) {
+        setShowDisconnect(false);
+      }
+    };
+
+    if (showDisconnect) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDisconnect]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
@@ -42,9 +60,9 @@ export default function LandingPage() {
             <a href="#features" className="hover:text-gray-100 transition-colors">
               How it Works
             </a>
-            <a href="#developers" className="hover:text-gray-100 transition-colors">
+            <Link to="/developers" className="hover:text-gray-100 transition-colors">
               Developers
-            </a>
+            </Link>
           </nav>
           <div className="flex items-center gap-4">
             {connected && publicKey ? (
@@ -55,23 +73,25 @@ export default function LandingPage() {
                     {loading ? '...' : `${balance?.toFixed(4) ?? '0'} SOL`}
                   </span>
                 </div>
-                <div 
-                  className={`relative ${showDisconnect ? 'pb-14' : ''}`}
-                  onMouseEnter={() => setShowDisconnect(true)}
-                  onMouseLeave={() => setShowDisconnect(false)}
-                >
+                <div className="relative" ref={disconnectRef}>
                   <button
+                    onClick={() => setShowDisconnect(!showDisconnect)}
                     className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                   >
                     {shortenAddress(publicKey.toBase58())}
                   </button>
                   {showDisconnect && (
-                    <button
-                      onClick={disconnect}
-                      className="absolute top-full left-0 mt-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap z-10"
-                    >
-                      Disconnect
-                    </button>
+                    <div className="absolute top-full right-0 mt-1 z-50">
+                      <button
+                        onClick={() => {
+                          disconnect();
+                          setShowDisconnect(false);
+                        }}
+                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap w-full"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -125,44 +145,38 @@ export default function LandingPage() {
                 </div>
                 <div className="flex items-center gap-2 text-xs text-gray-400 ml-4 bg-gray-900 px-3 py-1 rounded-md border border-gray-800">
                   <Terminal className="w-3 h-3" />
-                  solmind-intelligence-capsule.tsx
+                  solmind-agent.py
                 </div>
               </div>
               <div className="grid md:grid-cols-[1fr_300px]">
                 <div className="p-6 text-left font-mono text-sm leading-relaxed overflow-x-auto">
                   <div className="flex gap-4">
                     <span className="text-gray-500">1</span>
-                    <span className="text-blue-400">import</span> {"{ SolMindCapsule }"}{" "}
-                    <span className="text-blue-400">from</span> <span className="text-green-400">"@solmind/sdk"</span>
+                    <span className="text-blue-400">from</span> solmind <span className="text-blue-400">import</span> Agent
                   </div>
                   <div className="flex gap-4">
                     <span className="text-gray-500">2</span>
-                    <span>&nbsp;</span>
+                    agent = Agent(
                   </div>
-                  <div className="flex gap-4">
+                  <div className="flex gap-4 pl-4">
                     <span className="text-gray-500">3</span>
-                    <span className="text-blue-400">const</span> capsule ={" "}
-                    <span className="text-blue-400">await</span> SolMindCapsule.create({"{"}
+                    &nbsp;&nbsp;&nbsp;&nbsp;agent_id=<span className="text-green-400">"your-agent-id"</span>,
                   </div>
                   <div className="flex gap-4 pl-4">
                     <span className="text-gray-500">4</span>
-                    <span className="text-blue-400">id:</span>{" "}
-                    <span className="text-green-400">"research-alpha-01"</span>,
+                    &nbsp;&nbsp;&nbsp;&nbsp;chat_id=<span className="text-green-400">"your-chat-id"</span>,
                   </div>
                   <div className="flex gap-4 pl-4">
                     <span className="text-gray-500">5</span>
-                    <span className="text-blue-400">strategy:</span>{" "}
-                    <span className="text-green-400">"structured-reasoning"</span>,
+                    &nbsp;&nbsp;&nbsp;&nbsp;wallet_address=<span className="text-green-400">"YourSolanaWalletAddress"</span>,
                   </div>
                   <div className="flex gap-4 pl-4">
                     <span className="text-gray-500">6</span>
-                    <span className="text-blue-400">pricing:</span> {"{ perQuery: 0.005, currency: "}
-                    <span className="text-green-400">"SOL"</span>
-                    {" }"}
+                    &nbsp;&nbsp;&nbsp;&nbsp;base_url=<span className="text-green-400">"solmind.ai"</span>
                   </div>
                   <div className="flex gap-4">
                     <span className="text-gray-500">7</span>
-                    {"}"})
+                    )
                   </div>
                   <div className="flex gap-4">
                     <span className="text-gray-500">8</span>
@@ -170,12 +184,11 @@ export default function LandingPage() {
                   </div>
                   <div className="flex gap-4">
                     <span className="text-gray-500">9</span>
-                    <span className="text-gray-500 italic">// Signal confidence by staking</span>
+                    response = agent.chat(<span className="text-green-400">"Your message here"</span>)
                   </div>
                   <div className="flex gap-4">
                     <span className="text-gray-500">10</span>
-                    <span className="text-blue-400">await</span> capsule.stake(
-                    <span className="text-orange-400">10.5</span>)
+                    <span className="text-blue-400">print</span>(response)
                   </div>
                 </div>
                 <div className="border-l border-gray-800 bg-gray-700/30 p-6 flex flex-col gap-6">
@@ -411,9 +424,12 @@ export default function LandingPage() {
                   integration out of the box.
                 </p>
                 <div className="flex gap-4">
-                  <button className="bg-white text-gray-900 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-100 transition-colors">
+                  <Link 
+                    to="/developers"
+                    className="bg-white text-gray-900 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-100 transition-colors"
+                  >
                     View Docs
-                  </button>
+                  </Link>
                   <button className="border border-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-white/5 transition-colors flex items-center gap-2">
                     <Github className="w-4 h-4" />
                     GitHub

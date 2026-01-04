@@ -173,7 +173,7 @@ const AgentChat: React.FC<AgentChatProps> = ({
         console.log('Creating new chat for agent:', agentId);
         try {
           const createdChat = await api.createChat(agentId, {
-            name: 'New Chat',
+            name: `chat-${Date.now()}`,
             memory_size: 'Small'
           }) as any;
           currentChatId = createdChat.id;
@@ -338,7 +338,7 @@ const AgentChat: React.FC<AgentChatProps> = ({
             </button>
             <div>
               <h1 className="text-lg font-semibold text-white">
-                {messages.length === 0 ? 'New Chat' : 'Chat'}
+                {actualChatId || chatId || 'New Chat'}
               </h1>
             </div>
           </div>

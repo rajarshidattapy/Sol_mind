@@ -78,7 +78,7 @@ const CapsuleDetail = () => {
             </div>
             
             <div className="text-right">
-              <div className="text-2xl font-bold text-white mb-1">{capsule.price} MNT</div>
+              <div className="text-2xl font-bold text-white mb-1">{capsule.price} SOL</div>
               <div className="text-gray-400">per query</div>
               <div className="mt-4 space-x-3">
                 <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors">
@@ -95,7 +95,7 @@ const CapsuleDetail = () => {
           <div className="grid grid-cols-4 gap-4">
             <div className="bg-gray-700 rounded-lg p-4 text-center">
               <div className="text-2xl font-bold text-green-400">{capsule.stakeAmount}</div>
-              <div className="text-sm text-gray-400">MNT Staked</div>
+              <div className="text-sm text-gray-400">SOL Staked</div>
             </div>
             <div className="bg-gray-700 rounded-lg p-4 text-center">
               <div className="text-2xl font-bold text-blue-400">{capsule.queries}</div>

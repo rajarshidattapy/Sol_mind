@@ -153,7 +153,7 @@ const Marketplace = () => {
               <div className="grid grid-cols-3 gap-3 mb-4 text-xs">
                 <div className="bg-gray-700 rounded p-2 text-center">
                   <div className="text-green-400 font-semibold">{capsule.stakeAmount}</div>
-                  <div className="text-gray-400">MNT Staked</div>
+                  <div className="text-gray-400">SOL Staked</div>
                 </div>
                 <div className="bg-gray-700 rounded p-2 text-center">
                   <div className="text-blue-400 font-semibold">{capsule.queries}</div>
@@ -161,7 +161,7 @@ const Marketplace = () => {
                 </div>
                 <div className="bg-gray-700 rounded p-2 text-center">
                   <div className="text-purple-400 font-semibold">{capsule.price}</div>
-                  <div className="text-gray-400">MNT/query</div>
+                  <div className="text-gray-400">SOL/query</div>
                 </div>
               </div>
 
