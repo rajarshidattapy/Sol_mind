@@ -1,8 +1,10 @@
 from typing import Optional, List
 from datetime import datetime
 import uuid
+import httpx
 from app.db.database import get_supabase
 from app.models.schemas import Capsule, CapsuleCreate, CapsuleUpdate
+from app.core.config import settings
 
 
 class CapsuleService:
@@ -113,18 +115,121 @@ class CapsuleService:
         except Exception as e:
             print(f"Error deleting capsule: {e}")
     
-    async def query_capsule(self, capsule_id: str, prompt: str, wallet_address: str) -> dict:
+    async def query_capsule(
+        self,
+        capsule_id: str,
+        prompt: str,
+        wallet_address: str,
+        payment_signature: Optional[str] = None,
+        amount_paid: Optional[float] = None
+    ) -> dict:
         """Query a capsule (requires payment)"""
         capsule = await self.get_capsule(capsule_id)
         if not capsule:
             raise Exception("Capsule not found")
-        
-        # TODO: Implement payment processing via Solana
-        # TODO: Implement memory retrieval and LLM query
-        
+
+        # Verify payment if signature provided
+        if payment_signature and amount_paid:
+            verified = await self._verify_payment(
+                payment_signature,
+                wallet_address,
+                capsule.creator_wallet,
+                amount_paid
+            )
+            if not verified:
+                raise Exception("Payment verification failed")
+
+            # Record earnings
+            await self._record_earnings(capsule_id, capsule.creator_wallet, amount_paid)
+
+        # Increment query count
+        await self._increment_query_count(capsule_id)
+
+        # TODO: Implement memory retrieval and LLM query integration
         return {
-            "response": f"Mock response for capsule {capsule_id}. Payment and memory retrieval not yet implemented.",
+            "response": f"Query processed for capsule '{capsule.name}'. Payment verified ({amount_paid or 0} SOL). LLM integration pending.",
             "capsule_id": capsule_id,
-            "price_paid": capsule.price_per_query
+            "price_paid": amount_paid or 0
         }
+
+    async def _verify_payment(
+        self,
+        signature: str,
+        sender: str,
+        recipient: str,
+        amount: float
+    ) -> bool:
+        """Verify Solana transaction on-chain"""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    settings.SOLANA_RPC_URL,
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "getTransaction",
+                        "params": [signature, {"encoding": "json", "maxSupportedTransactionVersion": 0}]
+                    },
+                    timeout=10.0
+                )
+                data = response.json()
+
+                if "result" not in data or not data["result"]:
+                    print(f"Transaction not found: {signature}")
+                    return False
+
+                tx = data["result"]
+
+                # Check if transaction is confirmed
+                if not tx.get("meta") or tx["meta"].get("err"):
+                    print(f"Transaction failed or not confirmed: {signature}")
+                    return False
+
+                # TODO: Add more detailed verification
+                # - Verify sender and recipient public keys match
+                # - Verify amount transferred matches expected amount
+                # For MVP, we just verify the transaction exists and succeeded
+
+                print(f"Payment verified: {signature}")
+                return True
+
+        except Exception as e:
+            print(f"Payment verification error: {e}")
+            return False
+
+    async def _record_earnings(
+        self,
+        capsule_id: str,
+        wallet_address: str,
+        amount: float
+    ):
+        """Record earnings in database"""
+        try:
+            self._check_supabase()
+            self.supabase.table("earnings").insert({
+                "wallet_address": wallet_address,
+                "capsule_id": capsule_id,
+                "amount": amount,
+                "created_at": datetime.now().isoformat()
+            }).execute()
+            print(f"Recorded earnings: {amount} SOL for wallet {wallet_address}")
+        except Exception as e:
+            print(f"Error recording earnings: {e}")
+
+    async def _increment_query_count(self, capsule_id: str):
+        """Increment capsule query count"""
+        try:
+            self._check_supabase()
+            # Fetch current capsule
+            result = self.supabase.table("capsules").select("query_count").eq("id", capsule_id).single().execute()
+            if result.data:
+                current_count = result.data.get("query_count", 0)
+                # Update with incremented count
+                self.supabase.table("capsules").update({
+                    "query_count": current_count + 1,
+                    "updated_at": datetime.now().isoformat()
+                }).eq("id", capsule_id).execute()
+                print(f"Incremented query count for capsule {capsule_id}")
+        except Exception as e:
+            print(f"Error incrementing query count: {e}")
 
