@@ -16,11 +16,11 @@ interface LLMConfig {
 }
 
 // Default agent IDs that should not be loaded as custom LLMs
-const DEFAULT_AGENT_IDS = ['claude', 'gpt', 'mistral'];
+const DEFAULT_AGENT_IDS: string[] = [];
 
 const MainApp = () => {
   const [activeTab, setActiveTab] = useState('agents');
-  const [activeSubTab, setActiveSubTab] = useState('claude');
+  const [activeSubTab, setActiveSubTab] = useState('');
   const [customLLMs, setCustomLLMs] = useState<LLMConfig[]>([]);
   const api = useApiClient();
   const { publicKey, connected } = useWallet();
@@ -85,9 +85,38 @@ const MainApp = () => {
       try {
         const agents = await api.getAgents() as any[];
         
-        // Filter out default agents and convert to LLMConfig format
+        // Filter out default agents and any GPT/Mistral agents, and convert to LLMConfig format
+        // Allow specific exception: 'openai/gpt-oss-120b:free'
+        const ALLOWED_MODELS = ['openai/gpt-oss-120b:free'];
+        
+        const isGPTOrMistral = (str: string): boolean => {
+          const lower = str.toLowerCase();
+          // Allow specific models
+          if (ALLOWED_MODELS.some(allowed => lower.includes(allowed.toLowerCase()))) {
+            return false;
+          }
+          // Check for exact matches or common patterns (but not substrings like "devstral")
+          return lower === 'gpt' || lower === 'mistral' ||
+                 /^gpt[-_\s]/.test(lower) || /[-_\s]gpt[-_\s]/.test(lower) || /[-_\s]gpt$/.test(lower) ||
+                 /^mistral[-_\s]/.test(lower) || /[-_\s]mistral[-_\s]/.test(lower) || /[-_\s]mistral$/.test(lower);
+        };
+        
         const customAgents: LLMConfig[] = agents
-          .filter(agent => !DEFAULT_AGENT_IDS.includes(agent.id))
+          .filter(agent => {
+            const id = (agent.id || '').toLowerCase();
+            const name = (agent.name || '').toLowerCase();
+            const displayName = ((agent.display_name || agent.name) || '').toLowerCase();
+            // Check if this is an allowed model
+            const isAllowed = ALLOWED_MODELS.some(allowed => 
+              id.includes(allowed.toLowerCase()) || 
+              name.includes(allowed.toLowerCase()) || 
+              displayName.includes(allowed.toLowerCase())
+            );
+            if (isAllowed) return true;
+            // Filter out default agent IDs and any GPT/Mistral references
+            return !DEFAULT_AGENT_IDS.includes(agent.id) &&
+                   !isGPTOrMistral(id) && !isGPTOrMistral(name) && !isGPTOrMistral(displayName);
+          })
           .map(agent => ({
             id: agent.id,
             name: agent.name,
@@ -132,7 +161,7 @@ const MainApp = () => {
       default:
         return (
           <AgentsView 
-            activeModel="claude" 
+            activeModel={activeSubTab || ''} 
             customLLMs={customLLMs}
             onAddLLM={handleAddLLM}
           />

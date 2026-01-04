@@ -162,7 +162,7 @@ const ImportChats = () => {
                 
                 <div className="space-y-2 text-sm text-gray-300">
                   <div>• ChatGPT conversation exports</div>
-                  <div>• Claude conversation history</div>
+                  <div>• GPT conversation history</div>
                   <div>• Raw chat transcripts</div>
                   <div>• Structured Q&A documents</div>
                   <div>• Meeting notes with decisions</div>

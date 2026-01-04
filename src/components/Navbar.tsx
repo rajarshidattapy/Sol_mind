@@ -64,7 +64,6 @@ const Navbar: React.FC<NavbarProps> = ({
     'OpenAI',
     'Anthropic',
     'Google AI',
-    'Mistral AI',
     'Cohere',
     'Hugging Face',
     'Replicate',
@@ -120,17 +119,43 @@ const Navbar: React.FC<NavbarProps> = ({
   const getSubTabs = (tabId: string) => {
     switch (tabId) {
       case 'agents':
-        const defaultAgents = [
-          { id: 'claude', label: 'Claude', icon: MessageSquare },
-          { id: 'gpt', label: 'GPT', icon: MessageSquare },
-          { id: 'mistral', label: 'Mistral', icon: MessageSquare }
-        ];
-        const customAgents = customLLMs.map(llm => ({
-          id: llm.id, // Use agent ID instead of name
-          label: llm.displayName,
-          icon: MessageSquare
-        }));
-        return [...defaultAgents, ...customAgents];
+        // Filter out any GPT or Mistral agents (but not substrings like "devstral")
+        // Allow specific exception: 'openai/gpt-oss-120b:free'
+        const ALLOWED_MODELS = ['openai/gpt-oss-120b:free'];
+        
+        const isGPTOrMistral = (str: string): boolean => {
+          const lower = str.toLowerCase();
+          // Allow specific models
+          if (ALLOWED_MODELS.some(allowed => lower.includes(allowed.toLowerCase()))) {
+            return false;
+          }
+          // Check for exact matches or common patterns
+          return lower === 'gpt' || lower === 'mistral' ||
+                 /^gpt[-_\s]/.test(lower) || /[-_\s]gpt[-_\s]/.test(lower) || /[-_\s]gpt$/.test(lower) ||
+                 /^mistral[-_\s]/.test(lower) || /[-_\s]mistral[-_\s]/.test(lower) || /[-_\s]mistral$/.test(lower);
+        };
+        
+        const customAgents = customLLMs
+          .filter(llm => {
+            const id = (llm.id || '').toLowerCase();
+            const name = (llm.name || '').toLowerCase();
+            const displayName = (llm.displayName || '').toLowerCase();
+            // Check if this is an allowed model
+            const isAllowed = ALLOWED_MODELS.some(allowed => 
+              id.includes(allowed.toLowerCase()) || 
+              name.includes(allowed.toLowerCase()) || 
+              displayName.includes(allowed.toLowerCase())
+            );
+            if (isAllowed) return true;
+            // Otherwise apply normal filtering
+            return !isGPTOrMistral(id) && !isGPTOrMistral(name) && !isGPTOrMistral(displayName);
+          })
+          .map(llm => ({
+            id: llm.id, // Use agent ID instead of name
+            label: llm.displayName,
+            icon: MessageSquare
+          }));
+        return customAgents;
       case 'marketplace':
         return [
           { id: 'browse', label: 'Browse', icon: Store },
@@ -259,7 +284,7 @@ const Navbar: React.FC<NavbarProps> = ({
                   type="text"
                   value={newLLMName}
                   onChange={(e) => setNewLLMName(e.target.value)}
-                  placeholder="e.g., GPT-4o, Gemini Pro, Llama 3"
+                  placeholder="e.g., Gemini Pro, Llama 3, Claude"
                   className="w-full bg-gray-700 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                 />
               </div>

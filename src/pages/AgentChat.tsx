@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, ArrowLeft, Sparkles, Settings, X } from 'lucide-react';
 import { useApiClient } from '../lib/api';
+import ReactMarkdown from 'react-markdown';
 
 interface Message {
   id: string;
@@ -56,9 +57,6 @@ const AgentChat: React.FC<AgentChatProps> = ({
   }, [chatId]);
 
   const allLLMs: LLMConfig[] = [
-    { id: 'claude', name: 'claude', displayName: 'Claude 3.5 Sonnet', platform: 'Anthropic', apiKeyConfigured: true },
-    { id: 'gpt', name: 'gpt', displayName: 'GPT-4 Turbo', platform: 'OpenAI', apiKeyConfigured: true },
-    { id: 'mistral', name: 'mistral', displayName: 'Mistral Large', platform: 'Mistral AI', apiKeyConfigured: true },
     ...customLLMs
   ];
 
@@ -67,10 +65,29 @@ const AgentChat: React.FC<AgentChatProps> = ({
     llm.id === activeModel || 
     llm.name === activeModel || 
     llm.displayName === activeModel ||
-    llm.id.toLowerCase() === activeModel.toLowerCase() ||
+    llm.id.toLowerCase() === activeModel.toLowerCase() || 
     llm.name.toLowerCase() === activeModel.toLowerCase() ||
     llm.displayName.toLowerCase() === activeModel.toLowerCase()
-  ) || allLLMs[0]; // Default to first (Claude) only if no match found
+  ) || (allLLMs.length > 0 ? allLLMs[0] : null); // Default to first only if no match found and LLMs exist
+
+  // If no LLM is available, show error message
+  if (!currentLLM) {
+    return (
+      <div className="flex flex-col h-screen bg-gray-900 items-center justify-center">
+        <div className="text-center">
+          <Bot className="h-16 w-16 mx-auto mb-4 text-gray-600" />
+          <h3 className="text-xl font-semibold text-white mb-2">No LLM Available</h3>
+          <p className="text-gray-400 mb-4">Please add an LLM agent first to start chatting.</p>
+          <button
+            onClick={onBack}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Load messages from API when chatId is available and not a new chat
   useEffect(() => {
@@ -189,23 +206,62 @@ const AgentChat: React.FC<AgentChatProps> = ({
       setMessages(newMessages);
       setCurrentMessage('');
 
-      // Use agent ID (not name) for API calls
-      // Send message to backend API
-      const response = await api.sendMessage(agentId, currentChatId, {
-        role: 'user',
-        content: currentMessage
-      }) as { content: string };
-
+      // Use streaming API for LLM responses
+      const assistantMessageId = (Date.now() + 1).toString();
       const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: assistantMessageId,
         role: 'assistant',
-        content: response.content,
+        content: '',
         timestamp: new Date()
       };
 
-      const updatedMessages = [...newMessages, assistantMessage];
-      setMessages(updatedMessages);
-      onUpdateMessages(updatedMessages);
+      const initialMessagesWithAssistant = [...newMessages, assistantMessage];
+      setMessages(initialMessagesWithAssistant);
+
+      let streamingContent = '';
+
+      await api.sendMessageStream(
+        agentId,
+        currentChatId,
+        {
+          role: 'user',
+          content: currentMessage
+        },
+        (chunk: string) => {
+          // Update streaming content
+          streamingContent += chunk;
+          // Update the assistant message in real-time
+          setMessages(prevMessages => {
+            const updated = [...prevMessages];
+            const assistantIndex = updated.findIndex(m => m.id === assistantMessageId);
+            if (assistantIndex !== -1) {
+              updated[assistantIndex] = {
+                ...updated[assistantIndex],
+                content: streamingContent
+              };
+            }
+            return updated;
+          });
+        },
+        () => {
+          // Streaming complete
+          const finalMessages = [...newMessages, {
+            ...assistantMessage,
+            content: streamingContent
+          }];
+          setMessages(finalMessages);
+          onUpdateMessages(finalMessages);
+          setIsLoading(false);
+        },
+        (error: Error) => {
+          // Error handling
+          console.error('Streaming error:', error);
+          setError(error.message);
+          // Remove the empty assistant message on error
+          setMessages(newMessages);
+          setIsLoading(false);
+        }
+      );
     } catch (err) {
       console.error('Error sending message:', err);
       setError(err instanceof Error ? err.message : 'Failed to send message');
@@ -258,7 +314,6 @@ const AgentChat: React.FC<AgentChatProps> = ({
     'OpenAI',
     'Anthropic',
     'Google AI',
-    'Mistral AI',
     'Cohere',
     'Hugging Face',
     'Replicate',
@@ -342,8 +397,37 @@ const AgentChat: React.FC<AgentChatProps> = ({
                   ? 'bg-blue-600 text-white' 
                   : 'bg-gray-800 text-gray-100 border border-gray-700'
               }`}>
-                <p className="whitespace-pre-wrap">{message.content}</p>
-                {message.role === 'assistant' && (
+                {message.role === 'assistant' ? (
+                  <div className="prose prose-invert prose-sm max-w-none">
+                    <ReactMarkdown
+                      components={{
+                        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                        ul: ({ children }) => <ul className="list-disc list-inside mb-2">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal list-inside mb-2">{children}</ol>,
+                        li: ({ children }) => <li className="mb-1">{children}</li>,
+                        code: ({ children, ...props }: any) => 
+                          props.inline ? (
+                            <code className="bg-gray-700 px-1 py-0.5 rounded text-sm" {...props}>{children}</code>
+                          ) : (
+                            <code className="block bg-gray-700 p-2 rounded text-sm overflow-x-auto" {...props}>{children}</code>
+                          ),
+                        pre: ({ children }) => <pre className="bg-gray-700 p-2 rounded overflow-x-auto mb-2">{children}</pre>,
+                        h1: ({ children }) => <h1 className="text-xl font-bold mb-2">{children}</h1>,
+                        h2: ({ children }) => <h2 className="text-lg font-bold mb-2">{children}</h2>,
+                        h3: ({ children }) => <h3 className="text-base font-bold mb-2">{children}</h3>,
+                        strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                        em: ({ children }) => <em className="italic">{children}</em>,
+                        blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-600 pl-4 italic mb-2">{children}</blockquote>,
+                        a: ({ href, children }) => <a href={href} className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+                      }}
+                    >
+                      {message.content}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="whitespace-pre-wrap">{message.content}</p>
+                )}
+                {message.role === 'assistant' && message.content && message.content.trim() && (
                   <div className="text-xs text-green-400 mt-3 flex items-center">
                     <Sparkles className="h-3 w-3 mr-1" />
                     + Memory stored
@@ -429,7 +513,7 @@ const AgentChat: React.FC<AgentChatProps> = ({
                   type="text"
                   value={newLLMName}
                   onChange={(e) => setNewLLMName(e.target.value)}
-                  placeholder="e.g., GPT-4o, Gemini Pro, Llama 3"
+                  placeholder="e.g., Gemini Pro, Llama 3, Claude"
                   className="w-full bg-gray-700 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                 />
               </div>

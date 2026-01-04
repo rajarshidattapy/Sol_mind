@@ -4,7 +4,7 @@ import { useApiClient } from '../lib/api';
 import { useWallet } from '@solana/wallet-adapter-react';
 
 const Settings = () => {
-  const [defaultModel, setDefaultModel] = useState('claude-3.5-sonnet');
+  const [defaultModel, setDefaultModel] = useState('default');
   const [memoryBehavior, setMemoryBehavior] = useState('adaptive');
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -83,9 +83,7 @@ const Settings = () => {
                   onChange={(e) => setDefaultModel(e.target.value)}
                   className="w-full bg-gray-700 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                 >
-                  <option value="claude-3.5-sonnet">Claude 3.5 Sonnet</option>
-                  <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                  <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                  <option value="default">Default Model</option>
                 </select>
                 <p className="text-xs text-gray-500 mt-2">
                   Choose your preferred AI model for new conversations

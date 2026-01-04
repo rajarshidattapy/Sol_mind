@@ -173,12 +173,7 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
     const customLLM = customLLMs.find(llm => llm.name === model);
     if (customLLM) return customLLM.displayName;
     
-    switch (model) {
-      case 'claude': return 'Claude 3.5 Sonnet';
-      case 'gpt': return 'GPT-4 Turbo';
-      case 'mistral': return 'Mistral Large';
-      default: return model;
-    }
+    return model;
   };
 
   const handleContinueChat = (chatId: string) => {

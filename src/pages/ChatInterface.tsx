@@ -19,7 +19,7 @@ interface Chat {
 const ChatInterface = () => {
   const [selectedChat, setSelectedChat] = useState<string>('1');
   const [currentMessage, setCurrentMessage] = useState('');
-  const [selectedModel, setSelectedModel] = useState('Claude 3.5 Sonnet');
+  const [selectedModel, setSelectedModel] = useState('Default Model');
   
   const chats: Chat[] = [
     {
@@ -120,9 +120,7 @@ const ChatInterface = () => {
                   onChange={(e) => setSelectedModel(e.target.value)}
                   className="bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                 >
-                  <option>Claude 3.5 Sonnet</option>
-                  <option>GPT-4 Turbo</option>
-                  <option>GPT-3.5 Turbo</option>
+                  <option>Default Model</option>
                 </select>
               </div>
               

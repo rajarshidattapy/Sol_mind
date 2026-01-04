@@ -22,7 +22,7 @@ export class ApiClient {
     };
 
     if (walletAddress) {
-      headers['X-Wallet-Address'] = walletAddress;
+      (headers as Record<string, string>)['X-Wallet-Address'] = walletAddress;
     }
 
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
@@ -80,6 +80,97 @@ export class ApiClient {
       method: 'POST',
       body: JSON.stringify(message),
     });
+  }
+
+  async sendMessageStream(
+    agentId: string,
+    chatId: string,
+    message: { role: string; content: string },
+    onChunk: (chunk: string) => void,
+    onComplete: () => void,
+    onError: (error: Error) => void
+  ) {
+    const walletAddress = this.getWalletAddress();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    if (walletAddress) {
+      headers['X-Wallet-Address'] = walletAddress;
+    }
+
+    const response = await fetch(
+      `${this.baseUrl}/api/v1/agents/${encodeURIComponent(agentId)}/chats/${encodeURIComponent(chatId)}/messages/stream`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(message),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Unknown error' }));
+      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+    }
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+
+    if (!reader) {
+      throw new Error('No response body');
+    }
+
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const dataStr = line.slice(6);
+            try {
+              const data = JSON.parse(dataStr);
+              if (data.done) {
+                onComplete();
+                return;
+              }
+              if (data.content) {
+                onChunk(data.content);
+              }
+              if (data.error) {
+                onError(new Error(data.error));
+                return;
+              }
+            } catch (e) {
+              // Skip invalid JSON
+            }
+          }
+        }
+      }
+
+      // Process remaining buffer
+      if (buffer.startsWith('data: ')) {
+        const dataStr = buffer.slice(6);
+        try {
+          const data = JSON.parse(dataStr);
+          if (data.content) {
+            onChunk(data.content);
+          }
+        } catch (e) {
+          // Skip invalid JSON
+        }
+      }
+
+      onComplete();
+    } catch (error) {
+      onError(error instanceof Error ? error : new Error('Stream error'));
+    }
   }
 
   async getMessages(agentId: string, chatId: string) {
