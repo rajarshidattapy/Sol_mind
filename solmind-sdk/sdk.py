@@ -2,9 +2,9 @@ from solmind import Agent
 
 # Initialize agent with wallet address for authentication
 agent = Agent(
-    agent_id="custom-1da9863b",
-    chat_id="455dc692-df83-413d-bc48-e68af5525a71",
-    wallet_address="5UMbS37mHgE5WCiwPUibRCSwGJNm5u76UKgwrents2ok",  # Replace with your Solana wallet address
+    agent_id="custom-3aa06046",
+    chat_id="df4bddfe-002c-46a7-a409-ad76bd10973b",
+    wallet_address="AmfxkopBWbsF5qgQDCica6jGQ3NyMDhcLqcoRFzJodfJ",
     base_url="http://localhost:8000"  # Optional: defaults to localhost:8000
 )
 
