@@ -3,7 +3,8 @@
 <div align="center">
 
 
-https://github.com/user-attachments/assets/5663beec-21b5-42bc-8cde-71620eb9dc3c
+<video src="https://github.com/user-attachments/assets/5663beec-21b5-42bc-8cde-71620eb9dc3c" controls></video>
+
 *Built for Denova Hackathon*
 
 [![Built with FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com/)
