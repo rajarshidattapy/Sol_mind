@@ -1,10 +1,9 @@
-# 🧠 SolMind
+# 🧠 SolMind: Turn AI conversations into on-chain intelligence
 
 <div align="center">
-<img width="1520" height="980" alt="image" src="https://github.com/user-attachments/assets/21a9d8ba-e9a0-4a5f-ad0d-522669d406dd" />
 
-**Turn AI conversations into on-chain intelligence**
 
+https://github.com/user-attachments/assets/5663beec-21b5-42bc-8cde-71620eb9dc3c
 *Built for Denova Hackathon*
 
 [![Built with FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com/)
