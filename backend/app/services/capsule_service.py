@@ -46,6 +46,8 @@ class CapsuleService:
         capsule_id = str(uuid.uuid4())
         now = datetime.now()
         
+        print(f"Creating capsule with ID: {capsule_id}, name: {capsule_data.name}, wallet: {wallet_address}")
+        
         capsule = Capsule(
             id=capsule_id,
             name=capsule_data.name,
@@ -53,7 +55,7 @@ class CapsuleService:
             category=capsule_data.category,
             creator_wallet=wallet_address,
             price_per_query=capsule_data.price_per_query,
-            stake_amount=0.0,
+            stake_amount=0.0,  # Will be updated when staking happens
             reputation=0.0,
             query_count=0,
             rating=0.0,
@@ -64,7 +66,7 @@ class CapsuleService:
         
         try:
             self._check_supabase()
-            self.supabase.table("capsules").insert({
+            result = self.supabase.table("capsules").insert({
                 "id": capsule.id,
                 "name": capsule.name,
                 "description": capsule.description,
@@ -79,6 +81,10 @@ class CapsuleService:
                 "updated_at": capsule.updated_at.isoformat(),
                 "metadata": capsule.metadata or {}
             }).execute()
+            
+            print(f"Capsule inserted into database. ID: {capsule.id}, Name: {capsule.name}")
+            if result.data:
+                print(f"Inserted capsule details: id={result.data[0].get('id')}, name={result.data[0].get('name')}, stake_amount={result.data[0].get('stake_amount')}")
         except Exception as e:
             print(f"Error creating capsule: {e}")
         

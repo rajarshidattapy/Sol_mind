@@ -3,6 +3,9 @@ from datetime import datetime
 from app.db.database import get_supabase
 from app.models.schemas import WalletBalance, Earnings, StakingInfo, StakingCreate
 from app.core.config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 import httpx
 
 
@@ -104,12 +107,38 @@ class WalletService:
             }).execute()
             
             # Update capsule stake amount
-            self.supabase.rpc("increment_stake", {
-                "capsule_id": staking.capsule_id,
-                "amount": staking.stake_amount
-            }).execute()
+            # Get current stake amount
+            logger.info(f"Updating capsule {staking.capsule_id} with stake amount {staking.stake_amount}")
+            capsule_result = self.supabase.table("capsules").select("stake_amount").eq("id", staking.capsule_id).single().execute()
+            current_stake = 0.0
+            if capsule_result.data:
+                current_stake = float(capsule_result.data.get("stake_amount", 0) or 0)
+                logger.info(f"Current stake for capsule {staking.capsule_id}: {current_stake}")
+            else:
+                logger.warning(f"Capsule {staking.capsule_id} not found when trying to update stake")
+            
+            new_stake = current_stake + staking.stake_amount
+            logger.info(f"Updating capsule {staking.capsule_id}: current_stake={current_stake}, adding={staking.stake_amount}, new_stake={new_stake}")
+            
+            # Update capsule with new stake amount
+            update_result = self.supabase.table("capsules").update({
+                "stake_amount": new_stake,
+                "updated_at": datetime.now().isoformat()
+            }).eq("id", staking.capsule_id).execute()
+            
+            if update_result.data:
+                logger.info(f"Capsule stake updated successfully. Updated capsule: {update_result.data}")
+                # Verify the update
+                verify_result = self.supabase.table("capsules").select("stake_amount").eq("id", staking.capsule_id).single().execute()
+                if verify_result.data:
+                    verified_stake = float(verify_result.data.get("stake_amount", 0) or 0)
+                    logger.info(f"Verified stake amount for capsule {staking.capsule_id}: {verified_stake}")
+            else:
+                logger.error(f"Capsule stake update returned no data. Update may have failed.")
         except Exception as e:
-            print(f"Error creating staking: {e}")
+            logger.error(f"Error creating staking: {e}", exc_info=True)
+            import traceback
+            traceback.print_exc()
         
         return staking_info
 

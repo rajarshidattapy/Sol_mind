@@ -34,8 +34,12 @@ export const useSolanaBalance = () => {
       const subscriptionId = connection.onAccountChange(
         publicKey,
         (accountInfo) => {
-          setBalance(accountInfo.lamports / LAMPORTS_PER_SOL);
-        }
+          const newBalance = accountInfo.lamports / LAMPORTS_PER_SOL;
+          console.log('Balance updated via subscription:', newBalance);
+          // Always update balance to ensure UI reflects changes
+          setBalance(newBalance);
+        },
+        'confirmed' // Use confirmed commitment for faster updates
       );
 
       return () => {

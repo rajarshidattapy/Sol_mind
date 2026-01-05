@@ -1,13 +1,16 @@
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from app.models.schemas import (
     Chat, ChatCreate, ChatUpdate, Message, MessageCreate,
-    Agent, AgentCreate, LLMResponse
+    Agent, AgentCreate, LLMResponse, CapsuleCreate, StakingCreate
 )
 from app.services.agent_service import AgentService
 from app.services.llm_service import LLMService
+from app.services.capsule_service import CapsuleService
+from app.services.wallet_service import WalletService
 from app.core.auth_dependencies import get_wallet_address
+from datetime import datetime
 import logging
 import json
 
@@ -283,4 +286,87 @@ async def delete_chat(agent_id: str, chat_id: str, wallet_address: Optional[str]
     service = AgentService()
     await service.delete_chat(chat_id, wallet_address)
     return {"success": True, "message": "Chat deleted"}
+
+
+@router.post("/{agent_id}/stake")
+async def stake_on_agent(
+    agent_id: str,
+    stake_data: Dict[str, Any],
+    wallet_address: Optional[str] = Depends(get_wallet_address)
+):
+    """Stake on an agent - creates a capsule if needed and stakes on it"""
+    if not wallet_address:
+        raise HTTPException(status_code=401, detail="Wallet address required")
+    
+    agent_service = AgentService()
+    capsule_service = CapsuleService()
+    wallet_service = WalletService()
+    
+    # Verify agent exists and belongs to user
+    agent = await agent_service.get_agent(agent_id, wallet_address)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found or unauthorized")
+    
+    # Check if capsule already exists for this agent
+    # We'll use agent_id as part of capsule metadata to track the relationship
+    try:
+        capsule_service._check_supabase()
+        # Search for existing capsule with this agent_id in metadata
+        result = capsule_service.supabase.table("capsules").select("*").eq("creator_wallet", wallet_address).execute()
+        existing_capsule = None
+        for row in result.data:
+            metadata = row.get("metadata", {})
+            # Handle both dict and string (JSON) formats
+            if isinstance(metadata, str):
+                try:
+                    import json
+                    metadata = json.loads(metadata)
+                except:
+                    metadata = {}
+            if isinstance(metadata, dict) and metadata.get("agent_id") == agent_id:
+                existing_capsule = row
+                logger.info(f"Found existing capsule {row.get('id')} for agent {agent_id}")
+                break
+    except Exception as e:
+        logger.error(f"Error checking for existing capsule: {e}")
+        existing_capsule = None
+    
+    # Create capsule if it doesn't exist
+    if not existing_capsule:
+        logger.info(f"Creating new capsule for agent {agent_id}")
+        capsule_data = CapsuleCreate(
+            name=agent.display_name or agent.name,
+            description=stake_data.get("description", f"Memory capsule for {agent.display_name or agent.name}"),
+            category=stake_data.get("category", "General"),
+            price_per_query=stake_data.get("price_per_query", 0.05),
+            metadata={
+                "agent_id": agent_id,
+                "agent_name": agent.name,
+                "agent_display_name": agent.display_name,
+                "platform": agent.platform,
+                "model": agent.model
+            }
+        )
+        capsule = await capsule_service.create_capsule(capsule_data, wallet_address)
+        capsule_id = capsule.id
+        logger.info(f"Created capsule {capsule_id} for agent {agent_id}")
+    else:
+        capsule_id = existing_capsule["id"]
+        logger.info(f"Using existing capsule {capsule_id} for agent {agent_id}")
+    
+    # Create staking entry
+    staking_create = StakingCreate(
+        capsule_id=capsule_id,
+        stake_amount=stake_data.get("stake_amount", 0)
+    )
+    
+    # Create staking entry (this also updates the capsule stake amount)
+    staking_info = await wallet_service.create_staking(staking_create, wallet_address)
+    
+    return {
+        "success": True,
+        "capsule_id": capsule_id,
+        "staking_info": staking_info,
+        "message": "Successfully staked on agent"
+    }
 

@@ -56,6 +56,19 @@ export class ApiClient {
     });
   }
 
+  async stakeOnAgent(agentId: string, data: {
+    stake_amount: number;
+    price_per_query: number;
+    category: string;
+    description: string;
+    payment_signature?: string;
+  }) {
+    return this.request(`/api/v1/agents/${encodeURIComponent(agentId)}/stake`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Chats
   async getChats(agentId: string) {
     return this.request(`/api/v1/agents/${encodeURIComponent(agentId)}/chats`);
@@ -234,7 +247,7 @@ export class ApiClient {
       });
     }
     const query = params.toString();
-    return this.request(`/api/v1/marketplace/${query ? `?${query}` : ''}`);
+    return this.request(`/api/v1/marketplace${query ? `?${query}` : ''}`);
   }
 
   async getTrending(limit = 10) {

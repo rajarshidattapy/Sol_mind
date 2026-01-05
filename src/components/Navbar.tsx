@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Brain, Store, Wallet, Settings, MessageSquare, Coins, TrendingUp, ArrowLeft, Plus, X } from 'lucide-react';
 import { useSolanaBalance } from '../hooks/useSolanaBalance';
@@ -27,11 +27,30 @@ const BalanceDisplay = () => {
   const { balance, loading } = useSolanaBalance();
   const { connected } = useWallet();
   
+  // Log balance changes for debugging
+  useEffect(() => {
+    if (balance !== null && balance !== undefined) {
+      console.log('BalanceDisplay: balance changed to', balance);
+    }
+  }, [balance]);
+  
+  // Format balance with appropriate decimal places
+  const formatBalance = (bal: number | null): string => {
+    if (bal === null || bal === undefined) return '0';
+    // Show more decimal places to see transaction fee changes
+    // If balance is >= 1, show 4 decimals; if < 1, show 5 decimals
+    if (bal >= 1) {
+      return bal.toFixed(4);
+    } else {
+      return bal.toFixed(5);
+    }
+  };
+  
   return (
     <div className="bg-gray-900 rounded-lg px-4 py-2 border border-gray-600">
       <div className="text-sm text-gray-400">Balance</div>
-      <div className="text-lg font-semibold text-white">
-        {loading ? '...' : connected ? `${balance?.toFixed(2) ?? '0'} SOL` : 'N/A'}
+      <div className="text-lg font-semibold text-white" key={balance}>
+        {loading ? '...' : connected ? `${formatBalance(balance)} SOL` : 'N/A'}
       </div>
     </div>
   );

@@ -50,18 +50,73 @@ export async function sendPayment(
     );
 
     // Get recent blockhash and set fee payer
-    const { blockhash } = await connection.getLatestBlockhash();
+    // Use 'confirmed' commitment for faster response (wallet extensions can timeout on 'finalized')
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
     transaction.recentBlockhash = blockhash;
     transaction.feePayer = senderPubkey;
 
     // Sign transaction (will trigger wallet popup)
-    const signed = await signTransaction(transaction);
+    // Wrap in try-catch to handle wallet extension errors
+    let signed: Transaction;
+    try {
+      signed = await signTransaction(transaction);
+    } catch (signError) {
+      // Handle wallet-specific errors
+      if (signError instanceof Error) {
+        if (signError.message.includes('User rejected') || signError.message.includes('rejected')) {
+          return {
+            signature: '',
+            success: false,
+            error: 'Transaction rejected by user'
+          };
+        }
+        if (signError.message.includes('channel closed') || signError.message.includes('message channel')) {
+          return {
+            signature: '',
+            success: false,
+            error: 'Wallet connection closed. Please try again.'
+          };
+        }
+      }
+      throw signError;
+    }
 
     // Send transaction
-    const signature = await connection.sendRawTransaction(signed.serialize());
+    const signature = await connection.sendRawTransaction(signed.serialize(), {
+      skipPreflight: false,
+      maxRetries: 3
+    });
 
-    // Wait for confirmation
-    await connection.confirmTransaction(signature, 'confirmed');
+    // Wait for confirmation with a more lenient approach
+    // Use 'confirmed' commitment for faster response (avoids wallet extension timeouts)
+    try {
+      // Try to confirm, but don't wait too long
+      await Promise.race([
+        connection.confirmTransaction({
+          signature,
+          blockhash,
+          lastValidBlockHeight
+        }, 'confirmed'),
+        // Timeout after 30 seconds
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Confirmation timeout')), 30000)
+        )
+      ]);
+    } catch (confirmError) {
+      // If confirmation fails or times out, check if transaction was at least sent
+      // The transaction might still be processing on-chain
+      const status = await connection.getSignatureStatus(signature);
+      if (status.value) {
+        // Transaction exists (even if not fully confirmed yet)
+        console.warn('Transaction sent but confirmation incomplete:', signature);
+        return {
+          signature,
+          success: true
+        };
+      }
+      // If transaction doesn't exist, it likely failed
+      throw new Error('Transaction failed to send');
+    }
 
     return {
       signature,
