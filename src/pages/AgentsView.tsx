@@ -283,6 +283,23 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
     );
   }
 
+  // If no LLMs are available, show Add LLM prompt
+  if (customLLMs.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-900 p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center py-20">
+            <Brain className="h-16 w-16 mx-auto mb-6 text-gray-600" />
+            <h1 className="text-3xl font-bold text-white mb-4">No LLM Agents Available</h1>
+            <p className="text-gray-400 mb-8 max-w-2xl mx-auto">
+              You need to add an LLM agent before you can start chatting. Use the "Add LLM" button in the navigation bar above to add your first AI agent.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 p-8">
       <div className="max-w-7xl mx-auto">

@@ -82,15 +82,9 @@ const Navbar: React.FC<NavbarProps> = ({
     'OpenRouter',
     'OpenAI',
     'Anthropic',
-    'Google AI',
-    'Cohere',
+    'Gemini',
     'Hugging Face',
-    'Replicate',
-    'Together AI',
     'Groq',
-    'Perplexity',
-    'Fireworks AI',
-    'Other'
   ];
 
   const handleAddLLM = async () => {
@@ -242,7 +236,7 @@ const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Sub Navigation */}
-        {subTabs.length > 0 && (
+        {(subTabs.length > 0 || (activeTab === 'agents' && customLLMs.length === 0)) && (
           <div className="px-6 pb-4">
             <div className="flex space-x-1 flex-wrap gap-1">
               {subTabs.map((subTab) => {
@@ -262,7 +256,7 @@ const Navbar: React.FC<NavbarProps> = ({
                   </button>
                 );
               })}
-              {/* Add LLM button in agents tab */}
+              {/* Add LLM button in agents tab - always visible when on agents tab */}
               {activeTab === 'agents' && (
                 <button
                   onClick={() => setShowAddLLM(true)}
@@ -343,7 +337,7 @@ const Navbar: React.FC<NavbarProps> = ({
               <div className="bg-blue-600 bg-opacity-10 border border-blue-500 rounded-lg p-4">
                 <h4 className="text-blue-400 font-medium mb-2">Supported Platforms</h4>
                 <p className="text-sm text-gray-300">
-                  We support any OpenAI-compatible API endpoint. Enter your provider's API key to get started.
+                  We support any Openrouter.ai-compatible API endpoint. Enter your provider's API key to get started.
                 </p>
               </div>
 

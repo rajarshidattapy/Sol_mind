@@ -33,10 +33,23 @@ const MainApp = () => {
   const capsuleDetailMatch = location.pathname.match(/^\/app\/marketplace\/(.+)$/);
   const isCapsuleDetail = capsuleDetailMatch !== null;
 
+  // If user navigates to /marketplace, set active tab to marketplace
+  useEffect(() => {
+    if (location.pathname === '/marketplace') {
+      setActiveTab('marketplace');
+    }
+  }, [location.pathname]);
+
   // Load preferences from Redis (Vercel KV) on mount (only once)
   useEffect(() => {
     if (preferencesLoadedRef.current) return; // Only load once
     if (!connected || !publicKey) return; // Need wallet to load preferences
+    
+    // Don't load preferences if we're on /marketplace route (URL takes priority)
+    if (location.pathname === '/marketplace') {
+      preferencesLoadedRef.current = true;
+      return;
+    }
     
     const loadPreferences = async () => {
       try {
@@ -56,7 +69,7 @@ const MainApp = () => {
 
     loadPreferences();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected, publicKey]); // api is stable, doesn't need to be in deps
+  }, [connected, publicKey, location.pathname]); // api is stable, doesn't need to be in deps
 
   // Save preferences to Redis when they change
   useEffect(() => {
@@ -146,7 +159,14 @@ const MainApp = () => {
   }, [connected, publicKey?.toBase58()]); // Reload when wallet connects/disconnects (api is stable)
 
   const handleAddLLM = (llm: LLMConfig) => {
-    setCustomLLMs(prev => [...prev, llm]);
+    setCustomLLMs(prev => {
+      const newLLMs = [...prev, llm];
+      // If this is the first LLM added, automatically select it
+      if (prev.length === 0 && newLLMs.length === 1) {
+        setActiveSubTab(llm.id);
+      }
+      return newLLMs;
+    });
   };
 
   const renderContent = () => {

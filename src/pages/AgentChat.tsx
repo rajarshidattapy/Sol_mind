@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, ArrowLeft, Sparkles, Settings, X } from 'lucide-react';
+import { Send, Bot, User, ArrowLeft, Sparkles, Settings, X, Mic, MicOff } from 'lucide-react';
 import { useApiClient } from '../lib/api';
 import ReactMarkdown from 'react-markdown';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
 interface Message {
   id: string;
@@ -50,11 +51,36 @@ const AgentChat: React.FC<AgentChatProps> = ({
   const [newLLMApiKey, setNewLLMApiKey] = useState('');
   const [actualChatId, setActualChatId] = useState<string | undefined>(chatId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Speech recognition
+  const {
+    transcript,
+    isListening,
+    startListening,
+    stopListening,
+    error: speechError,
+    browserSupportsSpeechRecognition
+  } = useSpeechRecognition();
 
   // Update actualChatId when chatId prop changes
   useEffect(() => {
     setActualChatId(chatId);
   }, [chatId]);
+
+  // Update currentMessage when speech transcript changes
+  // Only update if we're actively listening (to avoid overwriting manual edits)
+  useEffect(() => {
+    if (transcript && isListening) {
+      setCurrentMessage(transcript);
+    }
+  }, [transcript, isListening]);
+
+  // Handle speech recognition errors
+  useEffect(() => {
+    if (speechError) {
+      setError(speechError);
+    }
+  }, [speechError]);
 
   const allLLMs: LLMConfig[] = [
     ...customLLMs
@@ -311,17 +337,12 @@ const AgentChat: React.FC<AgentChatProps> = ({
   };
 
   const platforms = [
+    'OpenRouter',
     'OpenAI',
     'Anthropic',
-    'Google AI',
-    'Cohere',
+    'Gemini',
     'Hugging Face',
-    'Replicate',
-    'Together AI',
-    'Groq',
-    'Perplexity',
-    'Fireworks AI',
-    'Other'
+    'Groq'
   ];
 
   return (
@@ -468,15 +489,35 @@ const AgentChat: React.FC<AgentChatProps> = ({
       {/* Input Area */}
       <div className="border-t border-gray-700 p-4 bg-gray-800">
         <div className="flex space-x-4 max-w-4xl mx-auto">
-          <input
-            type="text"
-            value={currentMessage}
-            onChange={(e) => setCurrentMessage(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-            placeholder={`Message ${currentLLM.displayName}...`}
-            className="flex-1 bg-gray-900 text-white px-4 py-3 rounded-lg border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-            disabled={isLoading}
-          />
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              value={currentMessage}
+              onChange={(e) => setCurrentMessage(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+              placeholder={`Message ${currentLLM.displayName}...`}
+              className="w-full bg-gray-900 text-white px-4 py-3 pr-12 rounded-lg border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+              disabled={isLoading}
+            />
+            {browserSupportsSpeechRecognition && (
+              <button
+                onClick={isListening ? stopListening : startListening}
+                disabled={isLoading}
+                className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-colors ${
+                  isListening
+                    ? 'bg-red-600 hover:bg-red-700 text-white'
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                title={isListening ? 'Stop voice input' : 'Start voice input'}
+              >
+                {isListening ? (
+                  <MicOff className="h-4 w-4" />
+                ) : (
+                  <Mic className="h-4 w-4" />
+                )}
+              </button>
+            )}
+          </div>
           <button
             onClick={handleSendMessage}
             disabled={!currentMessage.trim() || isLoading}
@@ -485,6 +526,14 @@ const AgentChat: React.FC<AgentChatProps> = ({
             <Send className="h-5 w-5" />
           </button>
         </div>
+        {isListening && (
+          <div className="max-w-4xl mx-auto mt-2">
+            <div className="flex items-center space-x-2 text-sm text-blue-400">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+              <span>Listening... Speak now</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add LLM Modal */}

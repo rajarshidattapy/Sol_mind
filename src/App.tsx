@@ -11,6 +11,7 @@ function App() {
         <div className="min-h-screen bg-gray-900 text-gray-100">
           <Routes>
             <Route path="/" element={<LandingPage />} />
+            <Route path="/marketplace" element={<MainApp />} />
             <Route path="/app" element={<MainApp />} />
             <Route path="/app/*" element={<MainApp />} />
             <Route path="/developers" element={<DevelopersPage />} />

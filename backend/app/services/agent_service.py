@@ -76,54 +76,12 @@ class AgentService:
                         agent.api_key = None  # Don't expose API key
                         agents.append(agent)
         
-        # Add default agents (always included)
-        default_agents = [
-            Agent(
-                id="gpt",
-                name="gpt",
-                display_name="GPT-4 Turbo",
-                platform="OpenRouter",
-                api_key_configured=True,
-                model="openai/gpt-4-turbo",
-                api_key=None
-            ),
-            Agent(
-                id="mistral",
-                name="mistral",
-                display_name="Mistral Large",
-                platform="OpenRouter",
-                api_key_configured=True,
-                model="mistralai/mistral-large-latest",
-                api_key=None
-            )
-        ]
-        return default_agents + agents
+        # No default agents - users must add their own
+        return agents
     
     async def get_agent(self, agent_id: str, wallet_address: Optional[str]) -> Optional[Agent]:
         """Get a specific agent with API key (for internal use)"""
-        # Check default agents first (they're not in DB)
-        default_agents = {
-            "gpt": Agent(
-                id="gpt",
-                name="gpt",
-                display_name="GPT-4 Turbo",
-                platform="OpenRouter",
-                api_key_configured=True,
-                model="openai/gpt-4-turbo",
-                api_key=None
-            ),
-            "mistral": Agent(
-                id="mistral",
-                name="mistral",
-                display_name="Mistral Large",
-                platform="OpenRouter",
-                api_key_configured=True,
-                model="mistralai/mistral-large-latest",
-                api_key=None
-            )
-        }
-        if agent_id in default_agents:
-            return default_agents[agent_id]
+        # No default agents - check user's agents only
         
         # Check in-memory storage (for custom agents) - has API key
         if agent_id in AgentService._in_memory_agents:
