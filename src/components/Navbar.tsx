@@ -67,6 +67,7 @@ const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [showAddLLM, setShowAddLLM] = useState(false);
   const [newLLMName, setNewLLMName] = useState('');
+  const [newLLMModel, setNewLLMModel] = useState('');
   const [newLLMPlatform, setNewLLMPlatform] = useState('');
   const [newLLMApiKey, setNewLLMApiKey] = useState('');
   const [isCreatingAgent, setIsCreatingAgent] = useState(false);
@@ -100,7 +101,7 @@ const Navbar: React.FC<NavbarProps> = ({
         display_name: newLLMName,
         platform: newLLMPlatform,
         api_key: newLLMApiKey,
-        model: newLLMName // Use display name as model name
+        model: newLLMModel.trim() || newLLMName // Use OpenRouter model name if provided, otherwise fallback to display name
       }) as any;
 
       // Convert created agent to LLMConfig format
@@ -117,6 +118,7 @@ const Navbar: React.FC<NavbarProps> = ({
       
       // Clear form
       setNewLLMName('');
+      setNewLLMModel('');
       setNewLLMPlatform('');
       setNewLLMApiKey('');
       setShowAddLLM(false);
@@ -303,15 +305,34 @@ const Navbar: React.FC<NavbarProps> = ({
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-2">
-                  Model Name
+                  Display Name
                 </label>
                 <input
                   type="text"
                   value={newLLMName}
                   onChange={(e) => setNewLLMName(e.target.value)}
-                  placeholder="e.g., Gemini Pro, Llama 3, Claude"
+                  placeholder="e.g., Llama 3, Claude, Gemini Pro"
                   className="w-full bg-gray-700 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  This is the name that will appear in the UI
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Model Name
+                </label>
+                <input
+                  type="text"
+                  value={newLLMModel}
+                  onChange={(e) => setNewLLMModel(e.target.value)}
+                  placeholder="e.g., meta-llama/llama-3.3-70b-instruct:free"
+                  className="w-full bg-gray-700 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  The exact model identifier from OpenRouter (optional - will use display name if not provided)
+                </p>
               </div>
 
               <div>

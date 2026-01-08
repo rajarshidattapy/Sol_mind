@@ -48,6 +48,7 @@ const AgentChat: React.FC<AgentChatProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [showAddLLM, setShowAddLLM] = useState(false);
   const [newLLMName, setNewLLMName] = useState('');
+  const [newLLMModel, setNewLLMModel] = useState('');
   const [newLLMPlatform, setNewLLMPlatform] = useState('');
   const [newLLMApiKey, setNewLLMApiKey] = useState('');
   const [actualChatId, setActualChatId] = useState<string | undefined>(chatId);
@@ -313,7 +314,7 @@ const AgentChat: React.FC<AgentChatProps> = ({
         display_name: newLLMName,
         platform: newLLMPlatform,
         api_key: newLLMApiKey,
-        model: newLLMName // Use full model name (e.g., nvidia/nemotron-nano-12b-v2-vl:free)
+        model: newLLMModel.trim() || newLLMName // Use OpenRouter model name if provided, otherwise fallback to display name
       }) as any; // API returns snake_case, not camelCase
 
       const newLLM: LLMConfig = {
@@ -326,6 +327,7 @@ const AgentChat: React.FC<AgentChatProps> = ({
 
       onAddLLM(newLLM);
       setNewLLMName('');
+      setNewLLMModel('');
       setNewLLMPlatform('');
       setNewLLMApiKey('');
       setShowAddLLM(false);
@@ -607,15 +609,34 @@ const AgentChat: React.FC<AgentChatProps> = ({
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-2">
-                  Model Name
+                  Display Name
                 </label>
                 <input
                   type="text"
                   value={newLLMName}
                   onChange={(e) => setNewLLMName(e.target.value)}
-                  placeholder="e.g., Gemini Pro, Llama 3, Claude"
+                  placeholder="e.g., Llama 3, Claude, Gemini Pro"
                   className="w-full bg-gray-700 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  This is the name that will appear in the UI
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Model Name
+                </label>
+                <input
+                  type="text"
+                  value={newLLMModel}
+                  onChange={(e) => setNewLLMModel(e.target.value)}
+                  placeholder="e.g., meta-llama/llama-3.3-70b-instruct:free"
+                  className="w-full bg-gray-700 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  The exact model identifier from OpenRouter (optional - will use display name if not provided)
+                </p>
               </div>
 
               <div>
