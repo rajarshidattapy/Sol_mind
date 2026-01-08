@@ -2,7 +2,7 @@ from typing import Optional, List
 from datetime import datetime
 import uuid
 from app.db.database import get_supabase
-from app.models.schemas import Chat, ChatCreate, ChatUpdate, Message, MessageCreate, Agent, AgentCreate
+from app.models.schemas import Chat, ChatCreate, ChatUpdate, Message, MessageCreate, Agent, AgentCreate, AgentUpdate, AgentUpdate
 from app.services.cache_service import cache_service
 
 

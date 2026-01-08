@@ -88,6 +88,20 @@ export class ApiClient {
     return this.request(`/api/v1/agents/${encodeURIComponent(agentId)}/chats/${encodeURIComponent(chatId)}`);
   }
 
+  async updateAgent(agentId: string, update: { display_name?: string; model?: string }) {
+    return this.request(`/api/v1/agents/${encodeURIComponent(agentId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(update),
+    });
+  }
+
+  async updateChat(agentId: string, chatId: string, update: { name?: string; memory_size?: string }) {
+    return this.request(`/api/v1/agents/${encodeURIComponent(agentId)}/chats/${encodeURIComponent(chatId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(update),
+    });
+  }
+
   async sendMessage(agentId: string, chatId: string, message: { role: string; content: string }) {
     return this.request(`/api/v1/agents/${encodeURIComponent(agentId)}/chats/${encodeURIComponent(chatId)}/messages`, {
       method: 'POST',

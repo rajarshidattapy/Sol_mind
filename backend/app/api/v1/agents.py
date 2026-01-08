@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 from typing import Optional, List, Dict, Any
 from app.models.schemas import (
     Chat, ChatCreate, ChatUpdate, Message, MessageCreate,
-    Agent, AgentCreate, LLMResponse, CapsuleCreate, StakingCreate
+    Agent, AgentCreate, AgentUpdate, LLMResponse, CapsuleCreate, StakingCreate
 )
 from app.services.agent_service import AgentService
 from app.services.llm_service import LLMService
@@ -34,6 +34,25 @@ async def create_agent(agent: AgentCreate, wallet_address: Optional[str] = Depen
     
     service = AgentService()
     return await service.create_agent(agent, wallet_address)
+
+
+@router.put("/{agent_id}", response_model=Agent)
+async def update_agent(
+    agent_id: str,
+    agent_update: AgentUpdate,
+    wallet_address: Optional[str] = Depends(get_wallet_address)
+):
+    """Update an agent's display name or model"""
+    if not wallet_address:
+        raise HTTPException(status_code=401, detail="Wallet address required")
+    
+    service = AgentService()
+    
+    try:
+        return await service.update_agent(agent_id, agent_update, wallet_address)
+    except Exception as e:
+        logger.error(f"Error updating agent {agent_id}: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.delete("/{agent_id}")

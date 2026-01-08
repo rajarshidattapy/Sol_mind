@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, ArrowLeft, Sparkles, Settings, X, Mic, MicOff, Trash2 } from 'lucide-react';
+import { Send, Bot, User, ArrowLeft, Sparkles, Settings, X, Mic, MicOff, Trash2, Edit2, Check } from 'lucide-react';
 import { useApiClient } from '../lib/api';
 import ReactMarkdown from 'react-markdown';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
@@ -23,10 +23,12 @@ interface LLMConfig {
 interface AgentChatProps {
   activeModel: string;
   chatId?: string;
+  chatName?: string;
   initialMessages: Message[];
   onBack: () => void;
   onUpdateMessages: (messages: Message[]) => void;
   onUpdateChatId?: (oldId: string, newId: string) => void;
+  onUpdateChatName?: (chatId: string, newName: string) => void;
   customLLMs: LLMConfig[];
   onAddLLM: (llm: LLMConfig) => void;
 }
@@ -34,10 +36,12 @@ interface AgentChatProps {
 const AgentChat: React.FC<AgentChatProps> = ({ 
   activeModel, 
   chatId,
+  chatName,
   initialMessages,
   onBack,
   onUpdateMessages,
   onUpdateChatId,
+  onUpdateChatName,
   customLLMs,
   onAddLLM
 }) => {
@@ -52,7 +56,15 @@ const AgentChat: React.FC<AgentChatProps> = ({
   const [newLLMPlatform, setNewLLMPlatform] = useState('');
   const [newLLMApiKey, setNewLLMApiKey] = useState('');
   const [actualChatId, setActualChatId] = useState<string | undefined>(chatId);
+  const [actualChatName, setActualChatName] = useState<string | undefined>(chatName);
+  const [editingChatName, setEditingChatName] = useState(false);
+  const [editingChatValue, setEditingChatValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Update actualChatName when chatName prop changes
+  useEffect(() => {
+    setActualChatName(chatName);
+  }, [chatName]);
   
   // Speech recognition
   const {
@@ -349,6 +361,32 @@ const AgentChat: React.FC<AgentChatProps> = ({
     'Groq'
   ];
 
+  const handleRenameChat = async () => {
+    if (!editingChatValue.trim() || !actualChatId) {
+      setEditingChatName(false);
+      return;
+    }
+
+    try {
+      const agentId = currentLLM?.id || activeModel;
+      await api.updateChat(agentId, actualChatId, { name: editingChatValue.trim() });
+      
+      // Update local state
+      setActualChatName(editingChatValue.trim());
+      
+      // Notify parent component to update its state
+      if (onUpdateChatName) {
+        onUpdateChatName(actualChatId, editingChatValue.trim());
+      }
+      
+      setEditingChatName(false);
+    } catch (error) {
+      console.error('Error renaming chat:', error);
+      alert('Failed to rename chat. Please try again.');
+      setEditingChatName(false);
+    }
+  };
+
   // Generate human-readable chat name from ID
   const getChatDisplayName = (chatId: string | undefined): string => {
     if (!chatId) return 'New Chat';
@@ -387,11 +425,55 @@ const AgentChat: React.FC<AgentChatProps> = ({
               <ArrowLeft className="h-5 w-5 text-gray-400" />
             </button>
             <div className="flex items-center space-x-2">
-              <h1 className="text-lg font-semibold text-white">
-                {getChatDisplayName(actualChatId || chatId)}
-              </h1>
-              {(actualChatId || chatId) && (
-                <InfoIcon id={actualChatId || chatId || ''} label="Chat ID" />
+              {editingChatName ? (
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={editingChatValue}
+                    onChange={(e) => setEditingChatValue(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleRenameChat()}
+                    className="text-lg font-semibold bg-gray-700 text-white px-2 py-1 rounded border border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleRenameChat}
+                    className="p-1 hover:bg-green-900/50 rounded transition-colors text-green-400 hover:text-green-300"
+                    title="Save"
+                  >
+                    <Check className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingChatName(false);
+                      setEditingChatValue('');
+                    }}
+                    className="p-1 hover:bg-gray-700 rounded transition-colors text-gray-400 hover:text-white"
+                    title="Cancel"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <h1 className="text-lg font-semibold text-white">
+                    {actualChatName || getChatDisplayName(actualChatId || chatId)}
+                  </h1>
+                  {(actualChatId || chatId) && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setEditingChatName(true);
+                          setEditingChatValue(actualChatName || getChatDisplayName(actualChatId || chatId));
+                        }}
+                        className="p-1 hover:bg-gray-700 rounded transition-colors text-gray-400 hover:text-blue-400"
+                        title="Rename chat"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                      <InfoIcon id={actualChatId || chatId || ''} label="Chat ID" />
+                    </>
+                  )}
+                </>
               )}
             </div>
           </div>

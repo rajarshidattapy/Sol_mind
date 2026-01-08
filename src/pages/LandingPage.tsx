@@ -54,7 +54,7 @@ export default function LandingPage() {
             <span className="text-xl font-bold tracking-tight">SolMind</span>
           </div>
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-400">
-            <a href="#marketplace" className="hover:text-gray-100 transition-colors">
+            <a href="marketplace" className="hover:text-gray-100 transition-colors">
               Marketplace
             </a>
             <a href="#features" className="hover:text-gray-100 transition-colors">

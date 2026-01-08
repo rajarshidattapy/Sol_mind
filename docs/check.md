@@ -1,8 +1,6 @@
 backend:
 
 1) LLM routing for Zk
-2) better naming of model_id and chat_id
-4) rename chats and llms
 5) option to store memory/option to stop from storing that info - pvt info
 6) api key handling - given only when user buys chat - not visible so openly
 if not paid, no api - even though api - x402

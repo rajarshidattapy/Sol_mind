@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { MessageSquare, Plus, Brain, Clock, Sparkles, Trash2 } from 'lucide-react';
+import { MessageSquare, Plus, Brain, Clock, Sparkles, Trash2, Edit2, Check, X } from 'lucide-react';
 import AgentChat from './AgentChat';
 import { useApiClient } from '../lib/api';
 import InfoIcon from '../components/InfoIcon';
@@ -43,6 +43,10 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
   const [allChats, setAllChats] = useState<Record<string, Chat[]>>({});
   const [loadingChats, setLoadingChats] = useState<Record<string, boolean>>({});
   const prevCustomLLMsLengthRef = useRef<number>(0);
+  const [editingLLMName, setEditingLLMName] = useState<string | null>(null);
+  const [editingChatId, setEditingChatId] = useState<string | null>(null);
+  const [editingLLMValue, setEditingLLMValue] = useState('');
+  const [editingChatValue, setEditingChatValue] = useState('');
 
   // Get agent ID from model name
   const getAgentId = (model: string): string => {
@@ -288,6 +292,54 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
     setSelectedChatId(newId);
   };
 
+  const handleRenameLLM = async () => {
+    if (!editingLLMValue.trim() || editingLLMValue === getModelDisplayName(activeModel)) {
+      setEditingLLMName(null);
+      return;
+    }
+
+    try {
+      const agentId = getAgentId(activeModel);
+      await api.updateAgent(agentId, { display_name: editingLLMValue.trim() });
+      
+      // Trigger a refresh by updating parent state would require a callback
+      // For now, we'll reload the page or refresh the LLMs
+      window.location.reload(); // Simple solution - could be improved with proper state management
+    } catch (error) {
+      console.error('Error renaming LLM:', error);
+      alert('Failed to rename LLM. Please try again.');
+    } finally {
+      setEditingLLMName(null);
+      setEditingLLMValue('');
+    }
+  };
+
+  const handleRenameChat = async (chatId: string) => {
+    if (!editingChatValue.trim()) {
+      setEditingChatId(null);
+      return;
+    }
+
+    try {
+      const agentId = getAgentId(activeModel);
+      await api.updateChat(agentId, chatId, { name: editingChatValue.trim() });
+      
+      // Update local state
+      setAllChats(prev => ({
+        ...prev,
+        [activeModel]: (prev[activeModel] || []).map(chat => 
+          chat.id === chatId ? { ...chat, name: editingChatValue.trim() } : chat
+        )
+      }));
+    } catch (error) {
+      console.error('Error renaming chat:', error);
+      alert('Failed to rename chat. Please try again.');
+    } finally {
+      setEditingChatId(null);
+      setEditingChatValue('');
+    }
+  };
+
   const handleDeleteChat = async (chatId: string) => {
     if (!confirm('Are you sure you want to delete this chat? This action cannot be undone.')) {
       return;
@@ -351,6 +403,7 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
       <AgentChat 
         activeModel={activeModel}
         chatId={selectedChatId}
+        chatName={selectedChat.name || getChatDisplayName(selectedChat.id)}
         initialMessages={(selectedChat.messages || []).map(msg => ({
           ...msg,
           timestamp: msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp as string)
@@ -365,6 +418,15 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
           handleUpdateMessages(selectedChatId, normalizedMessages);
         }}
         onUpdateChatId={handleUpdateChatId}
+        onUpdateChatName={(chatId, newName) => {
+          // Update chat name in local state
+          setAllChats(prev => ({
+            ...prev,
+            [activeModel]: (prev[activeModel] || []).map(chat => 
+              chat.id === chatId ? { ...chat, name: newName } : chat
+            )
+          }));
+        }}
         customLLMs={customLLMs}
         onAddLLM={onAddLLM}
       />
@@ -392,11 +454,55 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
     <div className="min-h-screen bg-gray-900 p-8">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <div className="flex items-center space-x-4">
-            <div>
-              <h1 className="text-3xl font-bold text-white mb-2">
-                {getModelDisplayName(activeModel)} Chats
-              </h1>
+            <div className="flex items-center space-x-4">
+            <div className="flex-1">
+              {editingLLMName === activeModel ? (
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={editingLLMValue}
+                    onChange={(e) => setEditingLLMValue(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleRenameLLM()}
+                    className="text-3xl font-bold bg-gray-800 text-white px-3 py-1 rounded border border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleRenameLLM}
+                    className="p-1 hover:bg-green-900/50 rounded transition-colors text-green-400 hover:text-green-300"
+                    title="Save"
+                  >
+                    <Check className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingLLMName(null);
+                      setEditingLLMValue('');
+                    }}
+                    className="p-1 hover:bg-gray-700 rounded transition-colors text-gray-400 hover:text-white"
+                    title="Cancel"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <h1 className="text-3xl font-bold text-white mb-2">
+                    {getModelDisplayName(activeModel)} Chats
+                  </h1>
+                  {customLLMs.some(llm => llm.id === activeModel || llm.name === activeModel || llm.displayName === activeModel) && (
+                    <button
+                      onClick={() => {
+                        setEditingLLMName(activeModel);
+                        setEditingLLMValue(getModelDisplayName(activeModel));
+                      }}
+                      className="p-1 hover:bg-gray-700 rounded transition-colors text-gray-400 hover:text-blue-400"
+                      title="Rename LLM"
+                    >
+                      <Edit2 className="h-5 w-5" />
+                    </button>
+                  )}
+                </div>
+              )}
               <p className="text-gray-400">
                 Manage your conversations and memory capsules for {getModelDisplayName(activeModel)}
               </p>
@@ -451,10 +557,53 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
                 className="bg-gray-800 rounded-xl border border-gray-700 p-6 hover:border-gray-600 transition-colors"
               >
                 <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 flex-1">
                     <MessageSquare className="h-5 w-5 text-blue-400" />
-                    <h3 className="font-semibold text-white">{getChatDisplayName(chat.name || chat.id)}</h3>
-                    <InfoIcon id={chat.id} label="Chat ID" />
+                    {editingChatId === chat.id ? (
+                      <div className="flex items-center space-x-1 flex-1">
+                        <input
+                          type="text"
+                          value={editingChatValue}
+                          onChange={(e) => setEditingChatValue(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && handleRenameChat(chat.id)}
+                          className="flex-1 bg-gray-700 text-white px-2 py-1 rounded border border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => handleRenameChat(chat.id)}
+                          className="p-1 hover:bg-green-900/50 rounded transition-colors text-green-400 hover:text-green-300"
+                          title="Save"
+                        >
+                          <Check className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingChatId(null);
+                            setEditingChatValue('');
+                          }}
+                          className="p-1 hover:bg-gray-700 rounded transition-colors text-gray-400 hover:text-white"
+                          title="Cancel"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <h3 className="font-semibold text-white">{getChatDisplayName(chat.name || chat.id)}</h3>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingChatId(chat.id);
+                            setEditingChatValue(chat.name || getChatDisplayName(chat.id));
+                          }}
+                          className="p-1 hover:bg-gray-700 rounded transition-colors text-gray-400 hover:text-blue-400"
+                          title="Rename chat"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </button>
+                        <InfoIcon id={chat.id} label="Chat ID" />
+                      </>
+                    )}
                   </div>
                   <div className={`text-xs font-medium ${getMemoryColor(chat.memorySize)}`}>
                     {chat.memorySize}

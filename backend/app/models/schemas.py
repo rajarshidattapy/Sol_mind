@@ -74,6 +74,11 @@ class AgentCreate(BaseModel):
     model: Optional[str] = None
 
 
+class AgentUpdate(BaseModel):
+    display_name: Optional[str] = None
+    model: Optional[str] = None
+
+
 # Capsule Models
 class Capsule(BaseModel):
     id: str
