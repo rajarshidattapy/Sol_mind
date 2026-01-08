@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { MessageSquare, Plus, Brain, Clock, Sparkles } from 'lucide-react';
+import { MessageSquare, Plus, Brain, Clock, Sparkles, Trash2 } from 'lucide-react';
 import AgentChat from './AgentChat';
 import { useApiClient } from '../lib/api';
+import InfoIcon from '../components/InfoIcon';
 
 interface Message {
   id: string;
@@ -32,9 +33,10 @@ interface AgentsViewProps {
   activeModel: string;
   customLLMs: LLMConfig[];
   onAddLLM: (llm: LLMConfig) => void;
+  onRemoveLLM?: (llmId: string) => void;
 }
 
-const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddLLM }) => {
+const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddLLM, onRemoveLLM }) => {
   const api = useApiClient();
   const [activeView, setActiveView] = useState<'list' | 'chat'>('list');
   const [selectedChatId, setSelectedChatId] = useState<string | undefined>(undefined);
@@ -83,10 +85,11 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
 
         return {
           id: apiChat.id,
-          name: apiChat.id,
+          name: apiChat.name || apiChat.id, // Use name if available, otherwise ID
           lastMessage: apiChat.last_message || '',
           timestamp: apiChat.timestamp ? new Date(apiChat.timestamp) : new Date(),
           messageCount: apiChat.message_count || messages.length,
+          memorySize: (apiChat.memory_size || 'Small') as 'Small' | 'Medium' | 'Large',
           messages: messages
         };
       });
@@ -169,10 +172,39 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
   };
 
   const getModelDisplayName = (model: string) => {
-    const customLLM = customLLMs.find(llm => llm.name === model);
+    // activeModel is the ID, so check by ID first
+    const customLLM = customLLMs.find(llm => 
+      llm.id === model || 
+      llm.name === model || 
+      llm.displayName === model
+    );
     if (customLLM) return customLLM.displayName;
     
     return model;
+  };
+
+  // Generate human-readable chat name from ID
+  const getChatDisplayName = (chatId: string): string => {
+    // If it's a new chat, return "New Chat"
+    if (chatId.startsWith('new-')) {
+      return 'New Chat';
+    }
+    
+    // Remove "custom-" prefix if present
+    let cleanId = chatId;
+    if (chatId.startsWith('custom-')) {
+      cleanId = chatId.substring(7);
+    }
+    
+    // Try to extract a meaningful name from the ID
+    // If it's a UUID or similar, use a generic name
+    if (cleanId.length > 20 || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId)) {
+      // Generate a readable name based on timestamp or use a generic name
+      return `Chat ${cleanId.substring(0, 8)}`;
+    }
+    
+    // If it already looks readable, use it
+    return cleanId;
   };
 
   const handleContinueChat = (chatId: string) => {
@@ -185,7 +217,7 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
     const newChatId = `new-${Date.now()}`;
     const newChat: Chat = {
       id: newChatId,
-      name: newChatId,
+      name: 'New Chat',
       memorySize: 'Small',
       lastMessage: '',
       timestamp: new Date(),
@@ -228,7 +260,7 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
             messageCount: messages.length,
             lastMessage: lastMsg?.content.substring(0, 100) || '',
             timestamp: lastMsgTimestamp,
-            name: chat.id
+            name: chat.name || chat.id
           };
         }
         return chat;
@@ -248,12 +280,68 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
       const chats = updated[activeModel] || [];
       const chatIndex = chats.findIndex(c => c.id === oldId);
       if (chatIndex !== -1) {
-        chats[chatIndex] = { ...chats[chatIndex], id: newId, name: newId };
+        chats[chatIndex] = { ...chats[chatIndex], id: newId, name: chats[chatIndex].name || newId };
         updated[activeModel] = chats;
       }
       return updated;
     });
     setSelectedChatId(newId);
+  };
+
+  const handleDeleteChat = async (chatId: string) => {
+    if (!confirm('Are you sure you want to delete this chat? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const agentId = getAgentId(activeModel);
+      await api.deleteChat(agentId, chatId);
+      
+      // Remove chat from local state
+      setAllChats(prev => ({
+        ...prev,
+        [activeModel]: (prev[activeModel] || []).filter(c => c.id !== chatId)
+      }));
+      
+      // If deleted chat was selected, go back to list
+      if (selectedChatId === chatId) {
+        setActiveView('list');
+        setSelectedChatId(undefined);
+      }
+    } catch (error) {
+      console.error('Error deleting chat:', error);
+      alert('Failed to delete chat. Please try again.');
+    }
+  };
+
+  const handleDeleteAgent = async () => {
+    if (!confirm(`Are you sure you want to delete "${getModelDisplayName(activeModel)}" and all its chats? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const agentId = getAgentId(activeModel);
+      await api.deleteAgent(agentId);
+      
+      // Remove agent from local state if callback provided
+      if (onRemoveLLM) {
+        onRemoveLLM(agentId);
+      }
+      
+      // Remove chats from local state
+      setAllChats(prev => {
+        const updated = { ...prev };
+        delete updated[activeModel];
+        return updated;
+      });
+      
+      // Reset view
+      setActiveView('list');
+      setSelectedChatId(undefined);
+    } catch (error) {
+      console.error('Error deleting agent:', error);
+      alert('Failed to delete agent. Please try again.');
+    }
   };
 
 
@@ -304,13 +392,24 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
     <div className="min-h-screen bg-gray-900 p-8">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-white mb-2">
-              {getModelDisplayName(activeModel)} Chats
-            </h1>
-            <p className="text-gray-400">
-              Manage your conversations and memory capsules for {getModelDisplayName(activeModel)}
-            </p>
+          <div className="flex items-center space-x-4">
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-2">
+                {getModelDisplayName(activeModel)} Chats
+              </h1>
+              <p className="text-gray-400">
+                Manage your conversations and memory capsules for {getModelDisplayName(activeModel)}
+              </p>
+            </div>
+            {customLLMs.some(llm => llm.id === activeModel || llm.name === activeModel || llm.displayName === activeModel) && (
+              <button
+                onClick={handleDeleteAgent}
+                className="p-2 hover:bg-red-900/50 rounded-lg transition-colors text-red-400 hover:text-red-300"
+                title="Delete agent"
+              >
+                <Trash2 className="h-5 w-5" />
+              </button>
+            )}
           </div>
           
           <button 
@@ -354,7 +453,8 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center space-x-2">
                     <MessageSquare className="h-5 w-5 text-blue-400" />
-                    <h3 className="font-semibold text-white">{chat.name}</h3>
+                    <h3 className="font-semibold text-white">{getChatDisplayName(chat.name || chat.id)}</h3>
+                    <InfoIcon id={chat.id} label="Chat ID" />
                   </div>
                   <div className={`text-xs font-medium ${getMemoryColor(chat.memorySize)}`}>
                     {chat.memorySize}
@@ -384,8 +484,15 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
                     >
                       Continue Chat
                     </button>
-                    <button className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded text-sm transition-colors">
-                      View Capsule
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteChat(chat.id);
+                      }}
+                      className="bg-red-600 hover:bg-red-700 text-white py-2 px-3 rounded text-sm transition-colors flex items-center justify-center"
+                      title="Delete chat"
+                    >
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 </div>

@@ -5,15 +5,36 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 # Try to import MemoryClient (Platform API) first, fallback to Memory (open-source)
+MEM0_PLATFORM_AVAILABLE = False
+Memory = None
+MemoryClient = None
+_import_error = None
+
 try:
     from mem0 import MemoryClient
     MEM0_PLATFORM_AVAILABLE = True
-except ImportError:
+    logger.debug("✅ MemoryClient import successful")
+except (ImportError, ModuleNotFoundError) as e:
     MEM0_PLATFORM_AVAILABLE = False
+    _import_error = str(e)
+    logger.debug(f"MemoryClient import failed: {type(e).__name__}: {e}")
     try:
         from mem0 import Memory
-    except ImportError:
+        logger.debug("✅ Memory (open-source) import successful")
+    except (ImportError, ModuleNotFoundError) as e2:
         Memory = None
+        logger.debug(f"Memory import also failed: {type(e2).__name__}: {e2}")
+except Exception as e:
+    # Catch any other unexpected errors during import
+    MEM0_PLATFORM_AVAILABLE = False
+    _import_error = str(e)
+    logger.warning(f"Unexpected error importing MemoryClient: {type(e).__name__}: {e}")
+    try:
+        from mem0 import Memory
+        logger.debug("✅ Memory (open-source) import successful")
+    except Exception as e2:
+        Memory = None
+        logger.debug(f"Memory import also failed: {type(e2).__name__}: {e2}")
 
 class MemoryService:
     """
@@ -36,16 +57,25 @@ class MemoryService:
         self.memory = None
         self.use_platform = False
         
-        # Try Mem0 Platform first (if API key is provided)
-        if settings.MEM0_API_KEY:
+        # Try Mem0 Platform first (if API key is provided and import succeeded)
+        if settings.MEM0_API_KEY and MEM0_PLATFORM_AVAILABLE:
             try:
                 self.memory = MemoryClient(api_key=settings.MEM0_API_KEY)
                 self.use_platform = True
                 logger.info("✅ MemoryService initialized with Mem0 Platform API")
                 logger.info(f"   Using hosted memory service (trackable via Mem0 dashboard)")
+            except NameError as e:
+                logger.error(f"MemoryClient not available (import may have failed): {e}")
+                logger.warning("Falling back to open-source mem0...")
             except Exception as e:
                 logger.error(f"Failed to initialize Mem0 Platform: {e}")
                 logger.warning("Falling back to open-source mem0...")
+        elif settings.MEM0_API_KEY and not MEM0_PLATFORM_AVAILABLE:
+            logger.warning("MEM0_API_KEY is set but MemoryClient import failed - falling back to open-source mem0...")
+            if _import_error:
+                logger.warning(f"   Import error: {_import_error}")
+            logger.warning("   💡 To fix: Stop uvicorn, then run: pip install --upgrade mem0ai")
+            logger.warning("   The mem0ai package may need to be reinstalled (current version may be a placeholder)")
         
         # Fallback to open-source mem0 with local ChromaDB
         if not self.memory and Memory is not None:
@@ -70,7 +100,14 @@ class MemoryService:
         
         if not self.memory:
             logger.error("❌ MemoryService initialization failed - memory features disabled")
-            logger.warning("   Set MEM0_API_KEY for Platform API")
+            if settings.MEM0_API_KEY:
+                logger.error("   MEM0_API_KEY is set but mem0 package is not available")
+                logger.error("   💡 Solution: Stop uvicorn server, then run:")
+                logger.error("      pip uninstall mem0ai -y")
+                logger.error("      pip install mem0ai")
+                logger.error("   Then restart uvicorn")
+            else:
+                logger.warning("   Set MEM0_API_KEY for Platform API, or ensure mem0ai package is installed for open-source mode")
     
     def _is_available(self) -> bool:
         """Check if memory service is available"""

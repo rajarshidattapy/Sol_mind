@@ -36,6 +36,25 @@ async def create_agent(agent: AgentCreate, wallet_address: Optional[str] = Depen
     return await service.create_agent(agent, wallet_address)
 
 
+@router.delete("/{agent_id}")
+async def delete_agent(
+    agent_id: str, 
+    wallet_address: Optional[str] = Depends(get_wallet_address)
+):
+    """Delete an agent/LLM configuration and all associated chats"""
+    if not wallet_address:
+        raise HTTPException(status_code=401, detail="Wallet address required")
+    
+    service = AgentService()
+    
+    try:
+        await service.delete_agent(agent_id, wallet_address)
+        return {"success": True, "message": "Agent deleted successfully"}
+    except Exception as e:
+        logger.error(f"Error deleting agent {agent_id}: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.get("/{agent_id}/chats", response_model=List[Chat])
 async def list_chats(agent_id: str, wallet_address: Optional[str] = Depends(get_wallet_address)):
     """List all chats for an agent"""

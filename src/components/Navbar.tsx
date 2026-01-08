@@ -5,6 +5,7 @@ import { useSolanaBalance } from '../hooks/useSolanaBalance';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useApiClient } from '../lib/api';
 import appLogo from '../assets/app-logo.png';
+import InfoIcon from './InfoIcon';
 
 interface LLMConfig {
   id: string;
@@ -241,19 +242,30 @@ const Navbar: React.FC<NavbarProps> = ({
             <div className="flex space-x-1 flex-wrap gap-1">
               {subTabs.map((subTab) => {
                 const Icon = subTab.icon;
+                // Check if this is an agent tab (has an ID that matches a custom LLM)
+                const isAgentTab = activeTab === 'agents' && customLLMs.some(llm => llm.id === subTab.id);
                 return (
-                  <button
+                  <div
                     key={subTab.id}
-                    onClick={() => setActiveSubTab(subTab.id)}
-                    className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm transition-colors ${
-                      activeSubTab === subTab.id
-                        ? 'bg-gray-700 text-blue-400 border border-blue-500'
-                        : 'text-gray-400 hover:bg-gray-700 hover:text-white'
-                    }`}
+                    className="relative inline-flex items-center"
                   >
-                    <Icon className="h-4 w-4" />
-                    <span>{subTab.label}</span>
-                  </button>
+                    <button
+                      onClick={() => setActiveSubTab(subTab.id)}
+                      className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm transition-colors ${
+                        activeSubTab === subTab.id
+                          ? 'bg-gray-700 text-blue-400 border border-blue-500'
+                          : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span>{subTab.label}</span>
+                    </button>
+                    {isAgentTab && (
+                      <div className="ml-1" onClick={(e) => e.stopPropagation()}>
+                        <InfoIcon id={subTab.id} label="LLM ID" />
+                      </div>
+                    )}
+                  </div>
                 );
               })}
               {/* Add LLM button in agents tab - always visible when on agents tab */}

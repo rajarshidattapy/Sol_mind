@@ -169,6 +169,19 @@ const MainApp = () => {
     });
   };
 
+  const handleRemoveLLM = (llmId: string) => {
+    setCustomLLMs(prev => {
+      const filtered = prev.filter(llm => llm.id !== llmId);
+      // If the deleted agent was selected, switch to first available or clear selection
+      if (activeSubTab === llmId && filtered.length > 0) {
+        setActiveSubTab(filtered[0].id);
+      } else if (filtered.length === 0) {
+        setActiveSubTab('');
+      }
+      return filtered;
+    });
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'agents':
@@ -177,6 +190,7 @@ const MainApp = () => {
             activeModel={activeSubTab} 
             customLLMs={customLLMs}
             onAddLLM={handleAddLLM}
+            onRemoveLLM={handleRemoveLLM}
           />
         );
       case 'marketplace':

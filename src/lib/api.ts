@@ -196,6 +196,12 @@ export class ApiClient {
     });
   }
 
+  async deleteAgent(agentId: string) {
+    return this.request(`/api/v1/agents/${encodeURIComponent(agentId)}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Capsules
   async getCapsules() {
     return this.request('/api/v1/capsules/');

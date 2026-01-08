@@ -466,7 +466,7 @@ class AgentService:
         return msg
     
     async def delete_chat(self, chat_id: str, wallet_address: Optional[str]):
-        """Delete a chat and its messages from Redis"""
+        """Delete a chat and its messages from Redis, Supabase, and memory service"""
         # Get chat to find agent_id
         chat = await self.get_chat(chat_id, wallet_address)
         if not chat:
@@ -475,6 +475,26 @@ class AgentService:
         
         agent_id = chat.agent_id
         
+        # Delete memories associated with this chat
+        from app.services.memory_service import MemoryService
+        memory_service = MemoryService()
+        try:
+            memory_service.delete_chat_memories(agent_id, chat_id)
+            print(f"✅ Deleted memories for chat {chat_id}")
+        except Exception as e:
+            print(f"⚠️  Error deleting memories for chat {chat_id}: {e}")
+        
+        # Delete from Supabase if available
+        if self.supabase:
+            try:
+                # Delete messages first (CASCADE will handle this automatically, but explicit is clearer)
+                self.supabase.table("messages").delete().eq("chat_id", chat_id).execute()
+                # Delete chat
+                self.supabase.table("chats").delete().eq("id", chat_id).execute()
+                print(f"✅ Chat {chat_id} deleted from Supabase")
+            except Exception as e:
+                print(f"⚠️  Error deleting chat from Supabase: {e}")
+        
         # Delete from Redis
         if cache_service.redis_available:
             try:
@@ -482,6 +502,14 @@ class AgentService:
                 cache_service.delete_messages(chat_id)
                 if wallet_address:
                     cache_service.remove_chat_from_list(agent_id, wallet_address, chat_id)
+                
+                # Also remove from global agent chat list
+                agent_chat_list_key = f"agent:chats:{agent_id}"
+                agent_chat_ids = cache_service.get(agent_chat_list_key, [])
+                if chat_id in agent_chat_ids:
+                    agent_chat_ids.remove(chat_id)
+                    cache_service.set(agent_chat_list_key, agent_chat_ids, ttl_seconds=None)
+                
                 print(f"✅ Chat {chat_id} deleted from Redis")
             except Exception as e:
                 print(f"❌ Error deleting chat from Redis: {e}")
@@ -489,4 +517,46 @@ class AgentService:
         # Delete from in-memory storage
         AgentService._in_memory_chats.pop(chat_id, None)
         AgentService._in_memory_messages.pop(chat_id, None)
+    
+    async def delete_agent(self, agent_id: str, wallet_address: str) -> bool:
+        """Delete an agent/LLM configuration and all associated chats"""
+        # Verify agent exists and belongs to user
+        agent = await self.get_agent(agent_id, wallet_address)
+        if not agent:
+            raise Exception(f"Agent {agent_id} not found or unauthorized")
+        
+        # Delete all associated chats first (complete cleanup)
+        # delete_chat already handles memory cleanup, so we just need to delete chats
+        chats = await self.get_agent_chats(agent_id, wallet_address)
+        
+        # Delete all chats (delete_chat handles memory cleanup, Redis, Supabase, and in-memory)
+        for chat in chats:
+            try:
+                await self.delete_chat(chat.id, wallet_address)
+            except Exception as e:
+                print(f"⚠️  Error deleting chat {chat.id}: {e}")
+        
+        # Delete from Supabase
+        if self.supabase:
+            try:
+                # Chats are already handled above, just delete agent
+                self.supabase.table("agents").delete().eq("id", agent_id).eq("user_wallet", wallet_address).execute()
+                print(f"✅ Agent {agent_id} deleted from Supabase")
+            except Exception as e:
+                print(f"⚠️  Error deleting agent from Supabase: {e}")
+        
+        # Delete from Redis
+        if wallet_address and cache_service.redis_available:
+            try:
+                agents = cache_service.get_user_agents(wallet_address)
+                agents = [a for a in agents if a.get("id") != agent_id]
+                cache_service.set_user_agents(wallet_address, agents)
+                print(f"✅ Agent {agent_id} deleted from Redis")
+            except Exception as e:
+                print(f"❌ Error deleting agent from Redis: {e}")
+        
+        # Delete from in-memory storage
+        AgentService._in_memory_agents.pop(agent_id, None)
+        
+        return True
 

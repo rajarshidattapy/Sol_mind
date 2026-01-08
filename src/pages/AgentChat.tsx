@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, ArrowLeft, Sparkles, Settings, X, Mic, MicOff } from 'lucide-react';
+import { Send, Bot, User, ArrowLeft, Sparkles, Settings, X, Mic, MicOff, Trash2 } from 'lucide-react';
 import { useApiClient } from '../lib/api';
 import ReactMarkdown from 'react-markdown';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import InfoIcon from '../components/InfoIcon';
 
 interface Message {
   id: string;
@@ -338,12 +339,38 @@ const AgentChat: React.FC<AgentChatProps> = ({
 
   const platforms = [
     'OpenRouter',
+    'Cerebras',
     'OpenAI',
     'Anthropic',
     'Gemini',
     'Hugging Face',
     'Groq'
   ];
+
+  // Generate human-readable chat name from ID
+  const getChatDisplayName = (chatId: string | undefined): string => {
+    if (!chatId) return 'New Chat';
+    // If it's a new chat, return "New Chat"
+    if (chatId.startsWith('new-')) {
+      return 'New Chat';
+    }
+    
+    // Remove "custom-" prefix if present
+    let cleanId = chatId;
+    if (chatId.startsWith('custom-')) {
+      cleanId = chatId.substring(7);
+    }
+    
+    // Try to extract a meaningful name from the ID
+    // If it's a UUID or similar, use a generic name
+    if (cleanId.length > 20 || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId)) {
+      // Generate a readable name based on timestamp or use a generic name
+      return `Chat ${cleanId.substring(0, 8)}`;
+    }
+    
+    // If it already looks readable, use it
+    return cleanId;
+  };
 
   return (
     <div className="flex flex-col h-screen bg-gray-900">
@@ -357,16 +384,40 @@ const AgentChat: React.FC<AgentChatProps> = ({
             >
               <ArrowLeft className="h-5 w-5 text-gray-400" />
             </button>
-            <div>
+            <div className="flex items-center space-x-2">
               <h1 className="text-lg font-semibold text-white">
-                {actualChatId || chatId || 'New Chat'}
+                {getChatDisplayName(actualChatId || chatId)}
               </h1>
+              {(actualChatId || chatId) && (
+                <InfoIcon id={actualChatId || chatId || ''} label="Chat ID" />
+              )}
             </div>
           </div>
 
-          <div className="flex items-center space-x-2 bg-gray-700 px-3 py-2 rounded-lg">
-            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-            <span className="text-sm text-gray-300">{currentLLM.displayName}</span>
+          <div className="flex items-center space-x-2">
+            {actualChatId && (
+              <button
+                onClick={async () => {
+                  if (confirm('Are you sure you want to delete this chat? This action cannot be undone.')) {
+                    try {
+                      const agentId = currentLLM?.id || activeModel;
+                      await api.deleteChat(agentId, actualChatId);
+                      onBack(); // Go back to list after deletion
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Failed to delete chat');
+                    }
+                  }
+                }}
+                className="p-2 hover:bg-red-900/50 rounded-lg transition-colors text-red-400 hover:text-red-300"
+                title="Delete chat"
+              >
+                <Trash2 className="h-5 w-5" />
+              </button>
+            )}
+            <div className="flex items-center space-x-2 bg-gray-700 px-3 py-2 rounded-lg">
+              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+              <span className="text-sm text-gray-300">{currentLLM.displayName}</span>
+            </div>
           </div>
         </div>
       </div>
