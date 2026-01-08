@@ -74,7 +74,7 @@ export class ApiClient {
     return this.request(`/api/v1/agents/${encodeURIComponent(agentId)}/chats`);
   }
 
-  async createChat(agentId: string, chat: { name: string; memory_size?: string }) {
+  async createChat(agentId: string, chat: { name: string; memory_size?: string; web_search_enabled?: boolean }) {
     return this.request(`/api/v1/agents/${encodeURIComponent(agentId)}/chats`, {
       method: 'POST',
       body: JSON.stringify({
@@ -95,7 +95,7 @@ export class ApiClient {
     });
   }
 
-  async updateChat(agentId: string, chatId: string, update: { name?: string; memory_size?: string }) {
+  async updateChat(agentId: string, chatId: string, update: { name?: string; memory_size?: string; web_search_enabled?: boolean }) {
     return this.request(`/api/v1/agents/${encodeURIComponent(agentId)}/chats/${encodeURIComponent(chatId)}`, {
       method: 'PUT',
       body: JSON.stringify(update),

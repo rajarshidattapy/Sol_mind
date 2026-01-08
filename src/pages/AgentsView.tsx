@@ -19,6 +19,7 @@ interface Chat {
   timestamp: Date;
   messageCount: number;
   messages: Message[];
+  webSearchEnabled?: boolean;
 }
 
 interface LLMConfig {
@@ -94,7 +95,8 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
           timestamp: apiChat.timestamp ? new Date(apiChat.timestamp) : new Date(),
           messageCount: apiChat.message_count || messages.length,
           memorySize: (apiChat.memory_size || 'Small') as 'Small' | 'Medium' | 'Large',
-          messages: messages
+          messages: messages,
+          webSearchEnabled: apiChat.web_search_enabled || false
         };
       });
 
@@ -226,7 +228,8 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
       lastMessage: '',
       timestamp: new Date(),
       messageCount: 0,
-      messages: []
+      messages: [],
+      webSearchEnabled: false
     };
     
     setAllChats(prev => ({
@@ -404,6 +407,7 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
         activeModel={activeModel}
         chatId={selectedChatId}
         chatName={selectedChat.name || getChatDisplayName(selectedChat.id)}
+        webSearchEnabled={selectedChat.webSearchEnabled || false}
         initialMessages={(selectedChat.messages || []).map(msg => ({
           ...msg,
           timestamp: msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp as string)
@@ -424,6 +428,15 @@ const AgentsView: React.FC<AgentsViewProps> = ({ activeModel, customLLMs, onAddL
             ...prev,
             [activeModel]: (prev[activeModel] || []).map(chat => 
               chat.id === chatId ? { ...chat, name: newName } : chat
+            )
+          }));
+        }}
+        onUpdateWebSearch={(chatId, enabled) => {
+          // Update web search enabled in local state
+          setAllChats(prev => ({
+            ...prev,
+            [activeModel]: (prev[activeModel] || []).map(chat => 
+              chat.id === chatId ? { ...chat, webSearchEnabled: enabled } : chat
             )
           }));
         }}

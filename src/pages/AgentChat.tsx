@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, ArrowLeft, Sparkles, Settings, X, Mic, MicOff, Trash2, Edit2, Check } from 'lucide-react';
+import { Send, Bot, User, ArrowLeft, Sparkles, Settings, X, Mic, MicOff, Edit2, Check, Search, Plus } from 'lucide-react';
 import { useApiClient } from '../lib/api';
 import ReactMarkdown from 'react-markdown';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
@@ -24,11 +24,13 @@ interface AgentChatProps {
   activeModel: string;
   chatId?: string;
   chatName?: string;
+  webSearchEnabled?: boolean;
   initialMessages: Message[];
   onBack: () => void;
   onUpdateMessages: (messages: Message[]) => void;
   onUpdateChatId?: (oldId: string, newId: string) => void;
   onUpdateChatName?: (chatId: string, newName: string) => void;
+  onUpdateWebSearch?: (chatId: string, enabled: boolean) => void;
   customLLMs: LLMConfig[];
   onAddLLM: (llm: LLMConfig) => void;
 }
@@ -37,11 +39,13 @@ const AgentChat: React.FC<AgentChatProps> = ({
   activeModel, 
   chatId,
   chatName,
+  webSearchEnabled = false,
   initialMessages,
   onBack,
   onUpdateMessages,
   onUpdateChatId,
   onUpdateChatName,
+  onUpdateWebSearch,
   customLLMs,
   onAddLLM
 }) => {
@@ -57,14 +61,60 @@ const AgentChat: React.FC<AgentChatProps> = ({
   const [newLLMApiKey, setNewLLMApiKey] = useState('');
   const [actualChatId, setActualChatId] = useState<string | undefined>(chatId);
   const [actualChatName, setActualChatName] = useState<string | undefined>(chatName);
+  const [webSearchMode, setWebSearchMode] = useState<boolean>(webSearchEnabled);
   const [editingChatName, setEditingChatName] = useState(false);
   const [editingChatValue, setEditingChatValue] = useState('');
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const plusMenuRef = useRef<HTMLDivElement>(null);
 
   // Update actualChatName when chatName prop changes
   useEffect(() => {
     setActualChatName(chatName);
   }, [chatName]);
+
+  // Update webSearchMode when webSearchEnabled prop changes
+  useEffect(() => {
+    setWebSearchMode(webSearchEnabled);
+  }, [webSearchEnabled]);
+
+  // Close plus menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (plusMenuRef.current && !plusMenuRef.current.contains(event.target as Node)) {
+        setShowPlusMenu(false);
+      }
+    };
+
+    if (showPlusMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showPlusMenu]);
+
+  const handleToggleWebSearch = async () => {
+    if (!actualChatId) return;
+    
+    const newValue = !webSearchMode;
+    setWebSearchMode(newValue);
+    
+    try {
+      const agentId = currentLLM?.id || activeModel;
+      await api.updateChat(agentId, actualChatId, { web_search_enabled: newValue });
+      
+      // Notify parent component
+      if (onUpdateWebSearch) {
+        onUpdateWebSearch(actualChatId, newValue);
+      }
+    } catch (error) {
+      console.error('Error updating web search mode:', error);
+      // Revert on error
+      setWebSearchMode(!newValue);
+      alert('Failed to update web search mode. Please try again.');
+    }
+  };
   
   // Speech recognition
   const {
@@ -214,7 +264,8 @@ const AgentChat: React.FC<AgentChatProps> = ({
         try {
           const createdChat = await api.createChat(agentId, {
             name: `chat-${Date.now()}`,
-            memory_size: 'Small'
+            memory_size: 'Small',
+            web_search_enabled: webSearchMode
           }) as any;
           currentChatId = createdChat.id;
           console.log('Created chat:', currentChatId, 'for agent:', agentId);
@@ -479,29 +530,7 @@ const AgentChat: React.FC<AgentChatProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
-            {actualChatId && (
-              <button
-                onClick={async () => {
-                  if (confirm('Are you sure you want to delete this chat? This action cannot be undone.')) {
-                    try {
-                      const agentId = currentLLM?.id || activeModel;
-                      await api.deleteChat(agentId, actualChatId);
-                      onBack(); // Go back to list after deletion
-                    } catch (err) {
-                      setError(err instanceof Error ? err.message : 'Failed to delete chat');
-                    }
-                  }
-                }}
-                className="p-2 hover:bg-red-900/50 rounded-lg transition-colors text-red-400 hover:text-red-300"
-                title="Delete chat"
-              >
-                <Trash2 className="h-5 w-5" />
-              </button>
-            )}
-            <div className="flex items-center space-x-2 bg-gray-700 px-3 py-2 rounded-lg">
-              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-              <span className="text-sm text-gray-300">{currentLLM.displayName}</span>
-            </div>
+            {/* Removed web search toggle, delete button, and model name display */}
           </div>
         </div>
       </div>
@@ -624,6 +653,37 @@ const AgentChat: React.FC<AgentChatProps> = ({
       {/* Input Area */}
       <div className="border-t border-gray-700 p-4 bg-gray-800">
         <div className="flex space-x-4 max-w-4xl mx-auto">
+          {/* Plus Button with Menu */}
+          <div className="relative" ref={plusMenuRef}>
+            <button
+              onClick={() => setShowPlusMenu(!showPlusMenu)}
+              className="p-3 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded-lg transition-colors"
+              title="Options"
+            >
+              <Plus className="h-5 w-5" />
+            </button>
+            
+            {/* Plus Menu Dropdown */}
+            {showPlusMenu && (
+              <div className="absolute bottom-full left-0 mb-2 bg-gray-800 border border-gray-700 rounded-lg shadow-lg py-2 min-w-[200px] z-50">
+                <button
+                  onClick={() => {
+                    handleToggleWebSearch();
+                    setShowPlusMenu(false);
+                  }}
+                  className={`w-full text-left px-4 py-2 text-sm transition-colors flex items-center space-x-2 ${
+                    webSearchMode
+                      ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30'
+                      : 'text-gray-300 hover:bg-gray-700'
+                  }`}
+                >
+                  <Search className="h-4 w-4" />
+                  <span>{webSearchMode ? 'Disable' : 'Enable'} Web Search</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           <div className="flex-1 relative">
             <input
               type="text"
