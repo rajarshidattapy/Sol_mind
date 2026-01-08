@@ -1,23 +1,20 @@
 services:
   - type: web
     name: solmind-backend
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    dockerfilePath: ./Dockerfile
+    dockerContext: ./backend
     healthCheckPath: /health
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11
+      # Note: PORT is automatically set by Render - don't override it
       - key: HOST
         value: 0.0.0.0
-      - key: PORT
-        value: 8000
       - key: DEBUG
         value: false
-      # CORS Configuration - Set your frontend URLs here
+      - key: ENVIRONMENT
+        value: production
+      # CORS Configuration - Frontend URLs
       - key: CORS_ORIGINS
-        sync: false  # Set this manually in Render dashboard
-        # Example value: https://your-frontend.vercel.app,https://www.yourdomain.com
+        value: https://solmind-nu.vercel.app
       # Supabase Configuration
       - key: VITE_SUPABASE_URL
         sync: false  # Set this manually in Render dashboard
