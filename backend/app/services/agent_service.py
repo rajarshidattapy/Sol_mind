@@ -30,9 +30,10 @@ class AgentService:
                 redis_agents = cache_service.get_user_agents(wallet_address)
                 if redis_agents:
                     agents = [Agent(**agent_data) for agent_data in redis_agents]
-                    print(f"✅ Loaded {len(agents)} agents from Redis")
+                    # print(f"✅ Loaded {len(agents)} agents from Redis")
             except Exception as e:
-                print(f"⚠️  Error loading agents from Redis: {e}")
+                # print(f"⚠️  Error loading agents from Redis: {e}")
+                pass
         
         # Fallback to Supabase if Redis has no agents
         if not agents:
@@ -64,11 +65,13 @@ class AgentService:
                             for a in agents
                         ]
                         cache_service.set_user_agents(wallet_address, agents_data)
-                        print(f"✅ Synced {len(agents)} agents from Supabase to Redis")
+                        # print(f"✅ Synced {len(agents)} agents from Supabase to Redis")
                     except Exception as e:
-                        print(f"⚠️  Error syncing agents to Redis: {e}")
+                        # print(f"⚠️  Error syncing agents to Redis: {e}")
+                        pass
             except Exception as e:
-                print(f"⚠️  Error fetching agents from Supabase: {e}")
+                # print(f"⚠️  Error fetching agents from Supabase: {e}")
+                pass
                 # Check in-memory storage as last resort
                 for agent_id, agent_data in AgentService._in_memory_agents.items():
                     if not wallet_address or agent_data.get("user_wallet") == wallet_address:
@@ -99,7 +102,8 @@ class AgentService:
                 return Agent(**result.data)
         except Exception as e:
             # Supabase query failed, continue to other sources
-            print(f"Error fetching agent from Supabase: {e}")
+            # print(f"Error fetching agent from Supabase: {e}")
+            pass
         
         # Check Redis for custom agents (if wallet_address provided) - no API key here
         if wallet_address and cache_service.redis_available and agent_id.startswith("custom-"):
@@ -113,7 +117,8 @@ class AgentService:
                         # Otherwise return without API key (will cause API errors but at least agent exists)
                         return Agent(**agent_data, api_key=None)
             except Exception as e:
-                print(f"Error loading agent from Redis: {e}")
+                # print(f"Error loading agent from Redis: {e}")
+                pass
         
         return None
     
@@ -145,9 +150,10 @@ class AgentService:
         # Save to Redis (primary storage)
         try:
             cache_service.add_user_agent(wallet_address, agent_storage_data)
-            print(f"✅ Agent '{agent.display_name}' saved to Redis")
+            # print(f"✅ Agent '{agent.display_name}' saved to Redis")
         except Exception as e:
-            print(f"❌ Error saving agent to Redis: {e}")
+            # print(f"❌ Error saving agent to Redis: {e}")
+            pass
         
         # Also save to Supabase as backup
         saved_to_db = False
@@ -158,9 +164,10 @@ class AgentService:
                     "api_key": agent_data.api_key  # Store API key in database only
                 }).execute()
                 saved_to_db = True
-                print(f"✅ Agent '{agent.display_name}' also saved to Supabase")
+                # print(f"✅ Agent '{agent.display_name}' also saved to Supabase")
             except Exception as e:
-                print(f"⚠️  Error saving agent to Supabase: {e}")
+                # print(f"⚠️  Error saving agent to Supabase: {e}")
+                pass
         
         # Always store in memory as backup (even if saved to DB/Redis)
         AgentService._in_memory_agents[agent.id] = {
@@ -168,9 +175,9 @@ class AgentService:
             "api_key": agent_data.api_key
         }
         
-        if not saved_to_db and not self.supabase:
-            print("⚠️  WARNING: Supabase not configured. Agent stored in memory only.")
-            print("⚠️  Data will be lost on server restart. Please configure Supabase for persistence.")
+        # if not saved_to_db and not self.supabase:
+        #     print("⚠️  WARNING: Supabase not configured. Agent stored in memory only.")
+        #     print("⚠️  Data will be lost on server restart. Please configure Supabase for persistence.")
         
         # Don't return API key in response
         agent.api_key = None
@@ -228,13 +235,17 @@ class AgentService:
                         chat_data["timestamp"] = datetime.fromisoformat(chat_data["timestamp"])
                     
                     chat_data["messages"] = messages
+                    # Ensure web_search_enabled has a default value
+                    if "web_search_enabled" not in chat_data:
+                        chat_data["web_search_enabled"] = False
                     chats.append(Chat(**chat_data))
                 
                 # Sort by timestamp (newest first)
                 chats.sort(key=lambda x: x.timestamp, reverse=True)
                 return chats
             except Exception as e:
-                print(f"Error fetching chats from Redis: {e}")
+                # print(f"Error fetching chats from Redis: {e}")
+                pass
         
         # If no wallet_address or Redis unavailable, fallback to in-memory storage
         for chat_id, chat_data in AgentService._in_memory_chats.items():
@@ -252,6 +263,9 @@ class AgentService:
                             msg_data["role"] = MessageRole(msg_data["role"])
                         chat_messages.append(Message(**msg_data))
                     chat_data["messages"] = chat_messages
+                    # Ensure web_search_enabled has a default value
+                    if "web_search_enabled" not in chat_data:
+                        chat_data["web_search_enabled"] = False
                     chats.append(Chat(**chat_data))
         
         return chats
@@ -269,7 +283,8 @@ class AgentService:
             messages=[],
             agent_id=agent_id,
             capsule_id=chat_data.capsule_id,
-            user_wallet=wallet_address
+            user_wallet=wallet_address,
+            web_search_enabled=getattr(chat_data, 'web_search_enabled', False)
         )
         
         chat_dict = {
@@ -281,7 +296,8 @@ class AgentService:
             "agent_id": agent_id,
             "capsule_id": chat_data.capsule_id,
             "user_wallet": wallet_address,
-            "last_message": None
+            "last_message": None,
+            "web_search_enabled": getattr(chat_data, 'web_search_enabled', False)
         }
         
         # Save to Redis (primary storage) - ALWAYS save, even if wallet_address is missing
@@ -305,19 +321,20 @@ class AgentService:
                     cache_service.set(agent_chat_list_key, agent_chat_ids, ttl_seconds=None)
                 
                 saved_to_redis = True
-                print(f"✅ Chat '{chat.name}' saved to Redis (agent: {agent_id}, wallet: {wallet_address or 'N/A'})")
+                # print(f"✅ Chat '{chat.name}' saved to Redis (agent: {agent_id}, wallet: {wallet_address or 'N/A'})")
             except Exception as e:
-                print(f"❌ Error saving chat to Redis: {e}")
-                import traceback
-                traceback.print_exc()
+                # print(f"❌ Error saving chat to Redis: {e}")
+                # import traceback
+                # traceback.print_exc()
+                pass
         
         # Always store in memory as backup
         AgentService._in_memory_chats[chat_id] = chat_dict
         AgentService._in_memory_messages[chat_id] = []
         
-        if not saved_to_redis:
-            print("⚠️  WARNING: Redis not available. Chat stored in memory only.")
-            print("⚠️  Data will be lost on server restart. Please configure Redis for persistence.")
+        # if not saved_to_redis:
+        #     print("⚠️  WARNING: Redis not available. Chat stored in memory only.")
+        #     print("⚠️  Data will be lost on server restart. Please configure Redis for persistence.")
         
         return chat
     
@@ -330,7 +347,7 @@ class AgentService:
                 if chat_data:
                     # Check wallet address if provided
                     if wallet_address and chat_data.get("user_wallet") != wallet_address:
-                        print(f"Chat {chat_id} belongs to different wallet. Expected: {wallet_address}, Found: {chat_data.get('user_wallet')}")
+                        # print(f"Chat {chat_id} belongs to different wallet. Expected: {wallet_address}, Found: {chat_data.get('user_wallet')}")
                         return None
                     
                     # Get messages from Redis
@@ -351,16 +368,20 @@ class AgentService:
                         chat_data["timestamp"] = datetime.fromisoformat(chat_data["timestamp"])
                     
                     chat_data["messages"] = messages
+                    # Ensure web_search_enabled has a default value
+                    if "web_search_enabled" not in chat_data:
+                        chat_data["web_search_enabled"] = False
                     return Chat(**chat_data)
             except Exception as e:
-                print(f"Error fetching chat from Redis: {e}")
+                # print(f"Error fetching chat from Redis: {e}")
+                pass
         
         # Fallback to in-memory storage
         if chat_id in AgentService._in_memory_chats:
             chat_data = AgentService._in_memory_chats[chat_id].copy()
             # Check wallet address if provided
             if wallet_address and chat_data.get("user_wallet") != wallet_address:
-                print(f"Chat {chat_id} in memory belongs to different wallet. Expected: {wallet_address}, Found: {chat_data.get('user_wallet')}")
+                # print(f"Chat {chat_id} in memory belongs to different wallet. Expected: {wallet_address}, Found: {chat_data.get('user_wallet')}")
                 return None
             
             # Get messages from in-memory storage
@@ -368,9 +389,12 @@ class AgentService:
                 Message(**msg) for msg in AgentService._in_memory_messages.get(chat_id, [])
             ]
             chat_data["messages"] = chat_messages
+            # Ensure web_search_enabled has a default value
+            if "web_search_enabled" not in chat_data:
+                chat_data["web_search_enabled"] = False
             return Chat(**chat_data)
         
-        print(f"Chat {chat_id} not found in Redis or in-memory storage")
+        # print(f"Chat {chat_id} not found in Redis or in-memory storage")
         return None
     
     async def update_chat(self, chat_id: str, chat_update: ChatUpdate, wallet_address: Optional[str]) -> Chat:
@@ -402,9 +426,10 @@ class AgentService:
         if cache_service.redis_available:
             try:
                 cache_service.save_chat(chat_dict)
-                print(f"✅ Chat '{chat.name}' updated in Redis")
+                # print(f"✅ Chat '{chat.name}' updated in Redis")
             except Exception as e:
-                print(f"❌ Error updating chat in Redis: {e}")
+                # print(f"❌ Error updating chat in Redis: {e}")
+                pass
         
         # Update in-memory storage
         AgentService._in_memory_chats[chat_id] = chat_dict
@@ -443,15 +468,16 @@ class AgentService:
                     chat_data["last_message"] = message.content[:100]
                     cache_service.save_chat(chat_data)
                     print(f"✅ Message saved to Redis (chat: {chat_id})")
-                else:
-                    print(f"⚠️  Chat {chat_id} not found in Redis, saving message anyway")
+                # else:
+                #     print(f"⚠️  Chat {chat_id} not found in Redis, saving message anyway")
             except Exception as e:
-                print(f"❌ Error saving message to Redis: {e}")
-                import traceback
-                traceback.print_exc()
-                print("⚠️  Message stored in memory only")
-        else:
-            print("⚠️  Redis not available, message stored in memory only")
+                # print(f"❌ Error saving message to Redis: {e}")
+                # import traceback
+                # traceback.print_exc()
+                # print("⚠️  Message stored in memory only")
+                pass
+        # else:
+        #     print("⚠️  Redis not available, message stored in memory only")
         
         # Always store in memory as backup
         if chat_id not in AgentService._in_memory_messages:
@@ -470,7 +496,7 @@ class AgentService:
         # Get chat to find agent_id
         chat = await self.get_chat(chat_id, wallet_address)
         if not chat:
-            print(f"Chat {chat_id} not found")
+            # print(f"Chat {chat_id} not found")
             return
         
         agent_id = chat.agent_id
@@ -480,9 +506,10 @@ class AgentService:
         memory_service = MemoryService()
         try:
             memory_service.delete_chat_memories(agent_id, chat_id)
-            print(f"✅ Deleted memories for chat {chat_id}")
+            # print(f"✅ Deleted memories for chat {chat_id}")
         except Exception as e:
-            print(f"⚠️  Error deleting memories for chat {chat_id}: {e}")
+            # print(f"⚠️  Error deleting memories for chat {chat_id}: {e}")
+            pass
         
         # Delete from Supabase if available
         if self.supabase:
@@ -491,9 +518,10 @@ class AgentService:
                 self.supabase.table("messages").delete().eq("chat_id", chat_id).execute()
                 # Delete chat
                 self.supabase.table("chats").delete().eq("id", chat_id).execute()
-                print(f"✅ Chat {chat_id} deleted from Supabase")
+                # print(f"✅ Chat {chat_id} deleted from Supabase")
             except Exception as e:
-                print(f"⚠️  Error deleting chat from Supabase: {e}")
+                # print(f"⚠️  Error deleting chat from Supabase: {e}")
+                pass
         
         # Delete from Redis
         if cache_service.redis_available:
@@ -510,9 +538,10 @@ class AgentService:
                     agent_chat_ids.remove(chat_id)
                     cache_service.set(agent_chat_list_key, agent_chat_ids, ttl_seconds=None)
                 
-                print(f"✅ Chat {chat_id} deleted from Redis")
+                # print(f"✅ Chat {chat_id} deleted from Redis")
             except Exception as e:
-                print(f"❌ Error deleting chat from Redis: {e}")
+                # print(f"❌ Error deleting chat from Redis: {e}")
+                pass
         
         # Delete from in-memory storage
         AgentService._in_memory_chats.pop(chat_id, None)
@@ -534,16 +563,18 @@ class AgentService:
             try:
                 await self.delete_chat(chat.id, wallet_address)
             except Exception as e:
-                print(f"⚠️  Error deleting chat {chat.id}: {e}")
+                # print(f"⚠️  Error deleting chat {chat.id}: {e}")
+                pass
         
         # Delete from Supabase
         if self.supabase:
             try:
                 # Chats are already handled above, just delete agent
                 self.supabase.table("agents").delete().eq("id", agent_id).eq("user_wallet", wallet_address).execute()
-                print(f"✅ Agent {agent_id} deleted from Supabase")
+                # print(f"✅ Agent {agent_id} deleted from Supabase")
             except Exception as e:
-                print(f"⚠️  Error deleting agent from Supabase: {e}")
+                # print(f"⚠️  Error deleting agent from Supabase: {e}")
+                pass
         
         # Delete from Redis
         if wallet_address and cache_service.redis_available:
@@ -551,9 +582,10 @@ class AgentService:
                 agents = cache_service.get_user_agents(wallet_address)
                 agents = [a for a in agents if a.get("id") != agent_id]
                 cache_service.set_user_agents(wallet_address, agents)
-                print(f"✅ Agent {agent_id} deleted from Redis")
+                # print(f"✅ Agent {agent_id} deleted from Redis")
             except Exception as e:
-                print(f"❌ Error deleting agent from Redis: {e}")
+                # print(f"❌ Error deleting agent from Redis: {e}")
+                pass
         
         # Delete from in-memory storage
         AgentService._in_memory_agents.pop(agent_id, None)

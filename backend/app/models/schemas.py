@@ -40,6 +40,7 @@ class Chat(BaseModel):
     agent_id: Optional[str] = None
     capsule_id: Optional[str] = None  # Capsule scope for memory isolation
     user_wallet: Optional[str] = None
+    web_search_enabled: bool = False  # Enable web search via Tavily
 
 
 class ChatCreate(BaseModel):
@@ -47,11 +48,13 @@ class ChatCreate(BaseModel):
     agent_id: Optional[str] = None  # Optional since it's in the URL path
     capsule_id: Optional[str] = None  # Optional capsule scope
     memory_size: MemorySize = MemorySize.SMALL
+    web_search_enabled: bool = False
 
 
 class ChatUpdate(BaseModel):
     name: Optional[str] = None
     memory_size: Optional[MemorySize] = None
+    web_search_enabled: Optional[bool] = None
 
 
 # Agent Models

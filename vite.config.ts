@@ -8,6 +8,8 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    // Proxy is dev-only - production uses VITE_API_BASE_URL directly
+    // This allows local dev to proxy API calls to localhost:8000
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
@@ -24,4 +26,16 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    minify: 'esbuild',
+    sourcemap: mode === 'production' ? false : true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor': ['react', 'react-dom'],
+          'solana': ['@solana/web3.js', '@solana/wallet-adapter-react'],
+        }
+      }
+    }
+  }
 }));

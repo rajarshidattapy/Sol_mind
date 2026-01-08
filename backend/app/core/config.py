@@ -21,6 +21,13 @@ class Settings(BaseSettings):
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8000"))
     
+    @field_validator("PORT")
+    @classmethod
+    def validate_port(cls, v: int) -> int:
+        if v < 1 or v > 65535:
+            raise ValueError("PORT must be between 1 and 65535")
+        return v
+    
     # CORS - handle both JSON and comma-separated strings
     # Make it Optional to prevent pydantic-settings from trying to parse empty strings as JSON
     CORS_ORIGINS: Optional[List[str]] = Field(

@@ -1,6 +1,9 @@
 import { useWallet } from '@solana/wallet-adapter-react';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+if (!API_BASE_URL) {
+  throw new Error('VITE_API_BASE_URL environment variable is required');
+}
 
 export class ApiClient {
   private baseUrl: string;
@@ -31,8 +34,18 @@ export class ApiClient {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Unknown error' }));
-      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+      let errorMessage = 'Unknown error';
+      try {
+        const error = await response.json();
+        errorMessage = error.message || error.detail || `HTTP ${response.status}`;
+      } catch {
+        if (response.status === 0) {
+          errorMessage = 'Cannot connect to server. Check your internet connection and API URL.';
+        } else {
+          errorMessage = `HTTP error! status: ${response.status}`;
+        }
+      }
+      throw new Error(errorMessage);
     }
 
     return response.json();
@@ -136,8 +149,18 @@ export class ApiClient {
     );
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Unknown error' }));
-      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+      let errorMessage = 'Unknown error';
+      try {
+        const error = await response.json();
+        errorMessage = error.message || error.detail || `HTTP ${response.status}`;
+      } catch {
+        if (response.status === 0) {
+          errorMessage = 'Cannot connect to server. Check your internet connection and API URL.';
+        } else {
+          errorMessage = `HTTP error! status: ${response.status}`;
+        }
+      }
+      throw new Error(errorMessage);
     }
 
     const reader = response.body?.getReader();

@@ -13,28 +13,28 @@ _import_error = None
 try:
     from mem0 import MemoryClient
     MEM0_PLATFORM_AVAILABLE = True
-    logger.debug("✅ MemoryClient import successful")
+    # logger.debug("✅ MemoryClient import successful")
 except (ImportError, ModuleNotFoundError) as e:
     MEM0_PLATFORM_AVAILABLE = False
     _import_error = str(e)
-    logger.debug(f"MemoryClient import failed: {type(e).__name__}: {e}")
+    # logger.debug(f"MemoryClient import failed: {type(e).__name__}: {e}")
     try:
         from mem0 import Memory
-        logger.debug("✅ Memory (open-source) import successful")
+        # logger.debug("✅ Memory (open-source) import successful")
     except (ImportError, ModuleNotFoundError) as e2:
         Memory = None
-        logger.debug(f"Memory import also failed: {type(e2).__name__}: {e2}")
+        # logger.debug(f"Memory import also failed: {type(e2).__name__}: {e2}")
 except Exception as e:
     # Catch any other unexpected errors during import
     MEM0_PLATFORM_AVAILABLE = False
     _import_error = str(e)
-    logger.warning(f"Unexpected error importing MemoryClient: {type(e).__name__}: {e}")
+    # logger.warning(f"Unexpected error importing MemoryClient: {type(e).__name__}: {e}")
     try:
         from mem0 import Memory
-        logger.debug("✅ Memory (open-source) import successful")
+        # logger.debug("✅ Memory (open-source) import successful")
     except Exception as e2:
         Memory = None
-        logger.debug(f"Memory import also failed: {type(e2).__name__}: {e2}")
+        # logger.debug(f"Memory import also failed: {type(e2).__name__}: {e2}")
 
 class MemoryService:
     """
@@ -62,20 +62,23 @@ class MemoryService:
             try:
                 self.memory = MemoryClient(api_key=settings.MEM0_API_KEY)
                 self.use_platform = True
-                logger.info("✅ MemoryService initialized with Mem0 Platform API")
-                logger.info(f"   Using hosted memory service (trackable via Mem0 dashboard)")
+                # logger.info("✅ MemoryService initialized with Mem0 Platform API")
+                # logger.info(f"   Using hosted memory service (trackable via Mem0 dashboard)")
             except NameError as e:
-                logger.error(f"MemoryClient not available (import may have failed): {e}")
-                logger.warning("Falling back to open-source mem0...")
+                # logger.error(f"MemoryClient not available (import may have failed): {e}")
+                # logger.warning("Falling back to open-source mem0...")
+                pass
             except Exception as e:
-                logger.error(f"Failed to initialize Mem0 Platform: {e}")
-                logger.warning("Falling back to open-source mem0...")
+                # logger.error(f"Failed to initialize Mem0 Platform: {e}")
+                # logger.warning("Falling back to open-source mem0...")
+                pass
         elif settings.MEM0_API_KEY and not MEM0_PLATFORM_AVAILABLE:
-            logger.warning("MEM0_API_KEY is set but MemoryClient import failed - falling back to open-source mem0...")
-            if _import_error:
-                logger.warning(f"   Import error: {_import_error}")
-            logger.warning("   💡 To fix: Stop uvicorn, then run: pip install --upgrade mem0ai")
-            logger.warning("   The mem0ai package may need to be reinstalled (current version may be a placeholder)")
+            # logger.warning("MEM0_API_KEY is set but MemoryClient import failed - falling back to open-source mem0...")
+            # if _import_error:
+            #     logger.warning(f"   Import error: {_import_error}")
+            # logger.warning("   💡 To fix: Stop uvicorn, then run: pip install --upgrade mem0ai")
+            # logger.warning("   The mem0ai package may need to be reinstalled (current version may be a placeholder)")
+            pass
         
         # Fallback to open-source mem0 with local ChromaDB
         if not self.memory and Memory is not None:
@@ -92,22 +95,23 @@ class MemoryService:
                 }
                 
                 self.memory = Memory.from_config(config)
-                logger.info("✅ MemoryService initialized with open-source mem0 (ChromaDB)")
-                logger.warning("⚠️  Using local storage - memories not trackable via Mem0 dashboard")
+                # logger.info("✅ MemoryService initialized with open-source mem0 (ChromaDB)")
+                # logger.warning("⚠️  Using local storage - memories not trackable via Mem0 dashboard")
             except Exception as e:
-                logger.error(f"Failed to initialize open-source mem0: {e}")
+                # logger.error(f"Failed to initialize open-source mem0: {e}")
                 self.memory = None
         
         if not self.memory:
-            logger.error("❌ MemoryService initialization failed - memory features disabled")
-            if settings.MEM0_API_KEY:
-                logger.error("   MEM0_API_KEY is set but mem0 package is not available")
-                logger.error("   💡 Solution: Stop uvicorn server, then run:")
-                logger.error("      pip uninstall mem0ai -y")
-                logger.error("      pip install mem0ai")
-                logger.error("   Then restart uvicorn")
-            else:
-                logger.warning("   Set MEM0_API_KEY for Platform API, or ensure mem0ai package is installed for open-source mode")
+            # logger.error("❌ MemoryService initialization failed - memory features disabled")
+            # if settings.MEM0_API_KEY:
+            #     logger.error("   MEM0_API_KEY is set but mem0 package is not available")
+            #     logger.error("   💡 Solution: Stop uvicorn server, then run:")
+            #     logger.error("      pip uninstall mem0ai -y")
+            #     logger.error("      pip install mem0ai")
+            #     logger.error("   Then restart uvicorn")
+            # else:
+            #     logger.warning("   Set MEM0_API_KEY for Platform API, or ensure mem0ai package is installed for open-source mode")
+            pass
     
     def _is_available(self) -> bool:
         """Check if memory service is available"""
@@ -137,7 +141,7 @@ class MemoryService:
             List of memory dictionaries with 'memory' and 'metadata' keys
         """
         if not self._is_available():
-            logger.warning("Memory service not available, returning empty memories")
+            # logger.warning("Memory service not available, returning empty memories")
             return []
         
         # Map memory_size to limit
@@ -163,12 +167,12 @@ class MemoryService:
             )
             
             scope_info = f" (capsule: {capsule_id})" if capsule_id else ""
-            logger.info(f"🔍 Retrieved {len(memories)} memories for chat {chat_id}{scope_info} (query: '{query[:50]}...')")
-            if memories:
-                logger.debug(f"   Memory preview: {memories[0].get('memory', '')[:100]}...")
+            # logger.info(f"🔍 Retrieved {len(memories)} memories for chat {chat_id}{scope_info} (query: '{query[:50]}...')")
+            # if memories:
+            #     logger.debug(f"   Memory preview: {memories[0].get('memory', '')[:100]}...")
             return memories
         except Exception as e:
-            logger.error(f"❌ Error retrieving memories for chat {chat_id}: {e}")
+            # logger.error(f"❌ Error retrieving memories for chat {chat_id}: {e}")
             return []  # Fallback to empty list
     
     def store_chat_memory(
@@ -191,11 +195,11 @@ class MemoryService:
             True if memory was stored successfully, False otherwise
         """
         if not self._is_available():
-            logger.warning("Memory service not available, skipping memory storage")
+            # logger.warning("Memory service not available, skipping memory storage")
             return False
         
         if not messages or len(messages) < 2:
-            logger.warning(f"Not enough messages to store memory (got {len(messages) if messages else 0})")
+            # logger.warning(f"Not enough messages to store memory (got {len(messages) if messages else 0})")
             return False
         
         try:
@@ -220,13 +224,13 @@ class MemoryService:
                 # Log memory details if available
                 if isinstance(result, dict):
                     memory_id = result.get("id") or result.get("memory_id")
-                    if memory_id:
-                        logger.debug(f"   Memory ID: {memory_id}")
+                    # if memory_id:
+                    #     logger.debug(f"   Memory ID: {memory_id}")
             
             return True
         except Exception as e:
-            logger.error(f"❌ Error storing memory for chat {chat_id}: {e}")
-            logger.error(f"   Agent: {agent_id}, Messages: {len(messages)}")
+            # logger.error(f"❌ Error storing memory for chat {chat_id}: {e}")
+            # logger.error(f"   Agent: {agent_id}, Messages: {len(messages)}")
             return False
     
     def format_memory_context(self, memories: List[Dict]) -> str:
@@ -294,10 +298,10 @@ class MemoryService:
                     limit=100  # Get up to 100 memories
                 )
             
-            logger.info(f"📋 Found {len(memories)} total memories for chat {chat_id}")
+            # logger.info(f"📋 Found {len(memories)} total memories for chat {chat_id}")
             return memories
         except Exception as e:
-            logger.error(f"Error getting all memories for chat {chat_id}: {e}")
+            # logger.error(f"Error getting all memories for chat {chat_id}: {e}")
             return []
     
     def delete_chat_memories(
@@ -316,7 +320,7 @@ class MemoryService:
             True if deletion was successful, False otherwise
         """
         if not self._is_available():
-            logger.warning("Memory service not available, cannot delete memories")
+            # logger.warning("Memory service not available, cannot delete memories")
             return False
         
         try:
@@ -325,13 +329,13 @@ class MemoryService:
                 result = self.memory.delete(
                     filters={"user_id": agent_id, "chat_id": chat_id}
                 )
-                logger.info(f"✅ Deleted memories for chat {chat_id}")
+                # logger.info(f"✅ Deleted memories for chat {chat_id}")
                 return True
             else:
                 # For open-source, this is more complex
-                logger.warning(f"Delete by metadata not fully supported in open-source mem0 for chat {chat_id}")
+                # logger.warning(f"Delete by metadata not fully supported in open-source mem0 for chat {chat_id}")
                 return False
         except Exception as e:
-            logger.error(f"Error deleting memories for chat {chat_id}: {e}")
+            # logger.error(f"Error deleting memories for chat {chat_id}: {e}")
             return False
 

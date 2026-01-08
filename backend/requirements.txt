@@ -8,6 +8,7 @@ supabase>=2.3.0
 httpx
 mem0ai
 chromadb
+tavily
 upstash-redis>=1.0.0
 
 # httpx version will be resolved by supabase dependency (requires httpx>=0.24.0,<0.25.0)

@@ -4,8 +4,6 @@ backend:
 5) option to store memory/option to stop from storing that info - pvt info
 6) api key handling - given only when user buys chat - not visible so openly
 if not paid, no api - even though api - x402
-7) support for groq/any multi-interface api
-8) support for openai, claude
 9) proper gpt features in chat
 10) 8004 - payment: reputation handling
 11) trial 3 chats

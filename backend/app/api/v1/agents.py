@@ -51,7 +51,7 @@ async def update_agent(
     try:
         return await service.update_agent(agent_id, agent_update, wallet_address)
     except Exception as e:
-        logger.error(f"Error updating agent {agent_id}: {e}")
+        # logger.error(f"Error updating agent {agent_id}: {e}")
         raise HTTPException(status_code=404, detail=str(e))
 
 
@@ -70,7 +70,7 @@ async def delete_agent(
         await service.delete_agent(agent_id, wallet_address)
         return {"success": True, "message": "Agent deleted successfully"}
     except Exception as e:
-        logger.error(f"Error deleting agent {agent_id}: {e}")
+        # logger.error(f"Error deleting agent {agent_id}: {e}")
         raise HTTPException(status_code=404, detail=str(e))
 
 
@@ -134,17 +134,17 @@ async def send_message(
     llm_service = LLMService()
     
     # Get chat history
-    logger.debug(f"Looking up chat {chat_id} for wallet {wallet_address}")
+    # logger.debug(f"Looking up chat {chat_id} for wallet {wallet_address}")
     chat = await service.get_chat(chat_id, wallet_address)
     if not chat:
-        logger.warning(f"Chat {chat_id} not found for wallet {wallet_address}")
+        # logger.warning(f"Chat {chat_id} not found for wallet {wallet_address}")
         raise HTTPException(status_code=404, detail=f"Chat not found (chat_id: {chat_id}, wallet: {wallet_address})")
     
     # Use the chat's agent_id if available, otherwise use the URL agent_id
     # This ensures we use the correct agent that the chat was created with
     actual_agent_id = chat.agent_id if chat.agent_id else agent_id
-    if actual_agent_id != agent_id:
-        logger.info(f"Using chat's agent_id ({actual_agent_id}) instead of URL agent_id ({agent_id})")
+    # if actual_agent_id != agent_id:
+    #     logger.info(f"Using chat's agent_id ({actual_agent_id}) instead of URL agent_id ({agent_id})")
     
     # Get agent config (with API key for internal use)
     agent = await service.get_agent(actual_agent_id, wallet_address)
@@ -165,13 +165,17 @@ async def send_message(
         # Get capsule_id from chat for memory scope isolation
         capsule_id = chat.capsule_id if hasattr(chat, 'capsule_id') else None
         
+        # Get web_search_enabled from chat
+        web_search_enabled = getattr(chat, 'web_search_enabled', False)
+        
         response = await llm_service.get_completion(
             agent_id=actual_agent_id,  # Use the actual agent_id from chat
             messages=messages_history,
             agent_config=agent,
             chat_id=chat_id,  # Pass chat_id for memory retrieval
             memory_size=memory_size,  # Pass memory_size setting
-            capsule_id=capsule_id  # Pass capsule_id for memory scope isolation
+            capsule_id=capsule_id,  # Pass capsule_id for memory scope isolation
+            web_search_enabled=web_search_enabled  # Pass web_search_enabled flag
         )
         
         # Save assistant message
@@ -181,7 +185,7 @@ async def send_message(
         return response
     except Exception as e:
         # Log error but don't remove user message (user can see it failed)
-        logger.error(f"Error getting LLM response: {e}", exc_info=True)
+        # logger.error(f"Error getting LLM response: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get AI response: {str(e)}")
 
 
@@ -200,16 +204,16 @@ async def send_message_stream(
     llm_service = LLMService()
     
     # Get chat history
-    logger.debug(f"Looking up chat {chat_id} for wallet {wallet_address}")
+    # logger.debug(f"Looking up chat {chat_id} for wallet {wallet_address}")
     chat = await service.get_chat(chat_id, wallet_address)
     if not chat:
-        logger.warning(f"Chat {chat_id} not found for wallet {wallet_address}")
+        # logger.warning(f"Chat {chat_id} not found for wallet {wallet_address}")
         raise HTTPException(status_code=404, detail=f"Chat not found (chat_id: {chat_id}, wallet: {wallet_address})")
     
     # Use the chat's agent_id if available
     actual_agent_id = chat.agent_id if chat.agent_id else agent_id
-    if actual_agent_id != agent_id:
-        logger.info(f"Using chat's agent_id ({actual_agent_id}) instead of URL agent_id ({agent_id})")
+    # if actual_agent_id != agent_id:
+    #     logger.info(f"Using chat's agent_id ({actual_agent_id}) instead of URL agent_id ({agent_id})")
     
     # Get agent config (with API key for internal use)
     agent = await service.get_agent(actual_agent_id, wallet_address)
@@ -226,6 +230,7 @@ async def send_message_stream(
     # Get memory_size and capsule_id from chat
     memory_size = chat.memory_size.value if hasattr(chat.memory_size, 'value') else str(chat.memory_size)
     capsule_id = chat.capsule_id if hasattr(chat, 'capsule_id') else None
+    web_search_enabled = getattr(chat, 'web_search_enabled', False)
     
     async def generate_stream():
         full_content = ""
@@ -236,7 +241,8 @@ async def send_message_stream(
                 agent_config=agent,
                 chat_id=chat_id,
                 memory_size=memory_size,
-                capsule_id=capsule_id
+                capsule_id=capsule_id,
+                web_search_enabled=web_search_enabled
             ):
                 full_content += chunk
                 # Send chunk as SSE
@@ -250,7 +256,7 @@ async def send_message_stream(
             # Send completion signal
             yield f"data: {json.dumps({'done': True})}\n\n"
         except Exception as e:
-            logger.error(f"Error in streaming: {e}", exc_info=True)
+            # logger.error(f"Error in streaming: {e}", exc_info=True)
             error_data = json.dumps({'error': str(e)})
             yield f"data: {error_data}\n\n"
     
@@ -363,15 +369,16 @@ async def stake_on_agent(
                     metadata = {}
             if isinstance(metadata, dict) and metadata.get("agent_id") == agent_id:
                 existing_capsule = row
-                logger.info(f"Found existing capsule {row.get('id')} for agent {agent_id}")
+                # logger.info(f"Found existing capsule {row.get('id')} for agent {agent_id}")
                 break
     except Exception as e:
-        logger.error(f"Error checking for existing capsule: {e}")
+        # logger.error(f"Error checking for existing capsule: {e}")
         existing_capsule = None
     
     # Create capsule if it doesn't exist
     if not existing_capsule:
-        logger.info(f"Creating new capsule for agent {agent_id}")
+        # logger.info(f"Creating new capsule for agent {agent_id}")
+        pass
         capsule_data = CapsuleCreate(
             name=agent.display_name or agent.name,
             description=stake_data.get("description", f"Memory capsule for {agent.display_name or agent.name}"),
@@ -387,10 +394,10 @@ async def stake_on_agent(
         )
         capsule = await capsule_service.create_capsule(capsule_data, wallet_address)
         capsule_id = capsule.id
-        logger.info(f"Created capsule {capsule_id} for agent {agent_id}")
+        # logger.info(f"Created capsule {capsule_id} for agent {agent_id}")
     else:
         capsule_id = existing_capsule["id"]
-        logger.info(f"Using existing capsule {capsule_id} for agent {agent_id}")
+        # logger.info(f"Using existing capsule {capsule_id} for agent {agent_id}")
     
     # Create staking entry
     staking_create = StakingCreate(

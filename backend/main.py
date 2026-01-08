@@ -1,16 +1,24 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, status as http_status
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import uvicorn
 import logging
+import os
 
 from app.api.v1 import agents, marketplace, capsules, wallet, auth, preferences
 from app.core.config import settings
-from app.db.database import init_db
+from app.db.database import init_db, get_supabase
 
 # Configure logging
+log_level = logging.INFO
+if os.getenv("DEBUG", "False").lower() == "true":
+    log_level = logging.DEBUG
+elif os.getenv("ENVIRONMENT") == "production":
+    log_level = logging.WARNING  # Less verbose in production
+
 logging.basicConfig(
-    level=logging.INFO if not settings.DEBUG else logging.DEBUG,
+    level=log_level,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -45,13 +53,13 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware - Allow all origins
+# CORS middleware - Use configured origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ORIGINS,  # Use configured origins
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Wallet-Address"],
 )
 
 # Include routers
@@ -74,7 +82,36 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    """Health check endpoint with service validation"""
+    status = {
+        "status": "healthy",
+        "services": {}
+    }
+    
+    # Check database
+    supabase = get_supabase()
+    status["services"]["database"] = "available" if supabase else "unavailable"
+    
+    # Check Redis/KV (optional)
+    from app.services.cache_service import cache_service
+    status["services"]["cache"] = "available" if cache_service.redis_available else "unavailable"
+    
+    # Check memory service (optional)
+    try:
+        from app.services.memory_service import MemoryService
+        memory_service = MemoryService()
+        status["services"]["memory"] = "available" if memory_service._is_available() else "unavailable"
+    except:
+        status["services"]["memory"] = "unavailable"
+    
+    # Return 503 if critical services are down in production
+    if not settings.DEBUG and not supabase:
+        return JSONResponse(
+            content=status,
+            status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+    
+    return status
 
 
 if __name__ == "__main__":
